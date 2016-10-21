@@ -1,0 +1,4 @@
+/out/*
+output.ppm
+sq2
+*.o
