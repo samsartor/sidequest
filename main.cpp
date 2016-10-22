@@ -383,7 +383,9 @@ void loadSceneFromFile(const char *filename)
                                         Point(0,0,0),
                                         Point(0,0,0),
                                         0.0f,
-                                        0.0f);
+                                        0.0f,
+                                        1.0f,
+                                        1.45f);
 
     ifstream in(filename);
     while(getline(in, line))
@@ -405,7 +407,7 @@ void loadSceneFromFile(const char *filename)
             shapes.push_back(s);
         } else if(!tokens[0].compare("material")) {
 
-            float dr, dg, db, ar, ag, ab, sr, sg, sb, s, ref;
+            float dr, dg, db, ar, ag, ab, sr, sg, sb, s, ref, alpha, ior;
             dr = atof( tokens[1].c_str() );
             dg = atof( tokens[2].c_str() );
             db = atof( tokens[3].c_str() );
@@ -417,12 +419,19 @@ void loadSceneFromFile(const char *filename)
             sb = atof( tokens[9].c_str() );
             s = atof( tokens[10].c_str() );
             ref = atof( tokens[11].c_str() );
+            alpha = atof( tokens[12].c_str() );
+            ior = 1.45;
+            if (alpha < 0) {
+                ior = atof( tokens[13].c_str() );
+            }
 
             currentMaterial = Material(Point(dr, dg, db),
                                         Point(ar, ag, ab),
                                         Point(sr, sg, sb),
                                         s,
-                                        ref);
+                                        ref,
+                                        alpha,
+                                        ior);
 
         } else if(!tokens[0].compare("plane")) {
 

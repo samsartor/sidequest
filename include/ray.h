@@ -17,6 +17,10 @@ public:
 
 // MISCELLANEOUS
 
+    inline void step(float t) {
+		origin += direction * t;
+	}
+
 // MEMBER VARIABLES
 
     Point origin;

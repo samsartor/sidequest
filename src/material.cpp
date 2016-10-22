@@ -13,19 +13,25 @@ Material::Material()
     specular = Point(0,0,0);
     shininess = 0.0f;
     reflectivity = 0.0f;
+    alpha = 1.0f;
+    ior = 1.45;
 }
 
 Material::Material(Point _diffuse,
                     Point _ambient,
                     Point _specular,
                     float _shininess,
-                    float _reflectivity)
+                    float _reflectivity,
+                    float _alpha,
+                    float _ior)
 {
     diffuse = _diffuse;
     ambient = _ambient;
     specular = _specular;
     shininess = _shininess;
     reflectivity = _reflectivity;
+    alpha = _alpha;
+    ior = _ior;
 }
 
 Material::~Material()

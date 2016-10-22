@@ -58,11 +58,18 @@ bool Sphere::intersectWithRay(Ray &r, IntersectionData &id)
     float dsq_closest = (p_closest - center).magSq();
     if (dsq_closest > (radius * radius)) return false;
 
-    float t_back_to_hit = sqrt(radius * radius - dsq_closest);
-    float t_hit = t_closest - t_back_to_hit;
+    float t_to_hit = sqrt(radius * radius - dsq_closest);
+    float t_hit = t_closest - t_to_hit;
+
+    id.backface = false;
+    if (t_hit < 0 && (t_closest + t_to_hit) > 0) {
+        t_hit = t_closest + t_to_hit;
+        id.backface = true;
+    }
 
     id.intersectionPoint = r.origin + v * t_hit;
     id.surfaceNormal = (id.intersectionPoint - center) / radius;
+    if (id.backface) id.surfaceNormal *= -1;
     id.material = material;
     id.depth = t_hit;
     id.wasValidIntersection = true;

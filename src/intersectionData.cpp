@@ -7,6 +7,7 @@ IntersectionData::IntersectionData()
     surfaceNormal = Point(0,0,0);
     material = Material();
     depth = 1.0 / 0;
+    backface = false;
 }
 
 IntersectionData::~IntersectionData()

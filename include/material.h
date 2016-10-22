@@ -16,7 +16,9 @@ public:
                 Point _ambient,
                 Point _specular,
                 float _shininess,
-                float _reflectivity);
+                float _reflectivity,
+                float _alpha,
+                float _ior);
     ~Material();
 
 // MISCELLANEOUS
@@ -30,6 +32,8 @@ public:
     Point specular;
     float shininess;
     float reflectivity;
+    float alpha;
+    float ior;
 };
 
 #endif

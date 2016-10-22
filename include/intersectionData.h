@@ -21,6 +21,7 @@ public:
 
     bool wasValidIntersection;
     float depth;
+    bool backface;
     Point intersectionPoint;
     Point surfaceNormal;
     Material material;

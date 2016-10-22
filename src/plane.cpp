@@ -65,10 +65,14 @@ bool Plane::intersectWithRay(Ray &r, IntersectionData &id)
     // Computes the intersection between a ray and the plane.
     // Store the result in IntersectionData
 
-    float t = dot(onPlane - r.origin, normal) / dot(r.direction, normal);
+    float nod_dot = dot(r.direction, normal);
+
+    float t = dot(onPlane - r.origin, normal) / nod_dot;
     id.depth = t;
     id.intersectionPoint = r.origin + t * r.direction;
     id.surfaceNormal = normal;
+    id.backface = (nod_dot > 0);
+    if (id.backface) id.surfaceNormal *= -1;
     id.material = material;
     id.wasValidIntersection = true;
 

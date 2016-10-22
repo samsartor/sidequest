@@ -249,7 +249,8 @@ void raytraceImage(FreeCamera camera,
             float depth;
             Point color = Point(0, 0, 0);
             Ray prime = camera.getPrimaryRayThroughPixel(j, i, imageWidth, imageHeight);
-            traceRay(prime, shape_array, shape_array + shape_count, lights, camera.nearClipPlane, camera.farClipPlane, 1, color, depth, 0);
+            prime.step(camera.nearClipPlane);
+            traceRay(prime, shape_array, shape_array + shape_count, lights, 0, camera.farClipPlane - camera.nearClipPlane, 1, color, depth, 0);
 
             color.clamp(0, 1);
 
