@@ -29,10 +29,10 @@
 #include "point.h"
 #include "helper.h"
 #include "freeCamera.h"
-#include "pointLight.h"
 #include "shape.h"
 #include "sphere.h"
 #include "plane.h"
+#include "rt.h"
 
 using namespace std;
 
@@ -48,11 +48,21 @@ bool backwardKeyHeldDown = false;
 
 GLuint raytracedTexHandle;
 bool displayingTracedImage = false;
+bool tracing = false;
+
+FreeCamera rt_camera;
+RTData rt_data;
+float *rt_dest;
+int rt_samples;
+int rt_width;
+int rt_height;
+int rt_start;
+Point rt_sky;
 
 
 FreeCamera mainCamera;
 vector<Shape*> shapes;
-vector<PointLight*> lights;
+Point skyColor;
 
 
 // END GLOBAL VARIABLES ///////////////////////////////////////////////////////
@@ -159,13 +169,8 @@ void renderScene(void)
     //update any internal parameters in the scene.
     updateScene();
 
-    //transfer lighting parameters to OpenGL -- only relevant in preview mode.
-    for(unsigned int i = 0; i < lights.size(); i++)
-        lights[i]->enableLightAndUpdateParameters();
-
-
     //clear the render buffer
-    glClearColor(0,0,0,1);
+    glClearColor(skyColor.x,skyColor.y,skyColor.z,1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     if(displayingTracedImage)
@@ -206,8 +211,8 @@ void renderScene(void)
         glLoadIdentity();
         mainCamera.sendLookAtMatrix();          //send the lookat matrix to OpenGL
 
-        for(unsigned int i = 0; i < lights.size(); i++)  //send the light positions to OpenGL
-            lights[i]->setLightPosition();
+        float l0Position[4] = { 1, .75, 1, 0 };
+        glLightfv( GL_LIGHT0, GL_POSITION, l0Position );
 
         //draw a grid, just to keep us from going crazy / getting lost.
         glPushMatrix();
@@ -217,11 +222,6 @@ void renderScene(void)
         //render the spheres! 
         for(unsigned int i = 0; i < shapes.size(); i++)
             shapes[i]->draw();
-
-
-        //and render our light, for debug purposes...
-        for(unsigned int i = 0; i < lights.size(); i++)
-            lights[i]->draw();
     }
 
     //push the back buffer to the screen
@@ -247,6 +247,40 @@ void normalKeysUp(unsigned char key, int x, int y)
         backwardKeyHeldDown = false;
 }
 
+unsigned char *uploadRT() {
+    unsigned char *raytracedImage = makeImageData(rt_data.dest, rt_data.samples, 1.0, rt_data.width, rt_data.height);
+
+    registerOpenGLTexture(raytracedImage, 
+                          rt_data.width, 
+                          rt_data.height, 
+                          raytracedTexHandle);
+
+    return raytracedImage;
+}
+
+void stepRT(int timercrap) {
+    if (tracing) {
+        for(unsigned int i = 0; i < rt_data.height; i++) {
+            for(unsigned int j = 0; j < rt_data.width; j++) {
+                int idx = (i*rt_data.width+j);
+
+                if(idx % 1000 == 0) {
+                    printf("\33[2K\r");
+                    printf("%.2f%% of the way done...", (i*rt_data.width+j) / (float)(rt_data.width*rt_data.height) * 100.0f);
+                    fflush(stdout);
+                }
+
+                Ray prime = rt_camera.getPrimaryRayThroughPixel(j, i, rt_data.width, rt_data.height);
+                rt_samplePath(prime, rt_data, idx, rt_camera.nearClipPlane, rt_camera.farClipPlane, 5);
+            }
+        }
+        rt_data.samples += 5;
+
+        delete[] uploadRT();
+        glutTimerFunc(0, stepRT, 0);
+    }
+}
+
 //
 //  void normalKeysDown(unsigned char key, int x, int y)
 //
@@ -266,37 +300,49 @@ void normalKeysDown(unsigned char key, int x, int y)
     if(key == 'r' || key == 'R')
     {
         displayingTracedImage = !displayingTracedImage;
-        if(displayingTracedImage)
+        if(displayingTracedImage && !tracing)
         {
-            //go to town! do the raytracing.
-            unsigned char *raytracedImage;
+            // Initilize data
+            rt_camera = mainCamera;
+            rt_data.skyEmission = skyColor;
+            rt_start = glutGet(GLUT_ELAPSED_TIME);
+            rt_data.width = mainCamera.imageWidth;
+            rt_data.height = mainCamera.imageHeight;
+            int dest_size = rt_data.width * rt_data.height;
+            if (rt_data.dest != NULL) delete[] rt_data.dest;
+            rt_data.dest = new Point[dest_size];
+            for (int i = 0; i < dest_size; i++) {
+                rt_data.dest[i] = Point(0, 0, 0);
+            }
+            rt_data.shapeCount = shapes.size();
+            if (rt_data.shapes != NULL) delete[] rt_data.shapes;
+            rt_data.shapes = new Shape*[rt_data.shapeCount];
+            for (int i = 0; i < rt_data.shapeCount; i++) {
+                rt_data.shapes[i] = shapes[i];
+            }
 
-            int start = glutGet(GLUT_ELAPSED_TIME);
-            raytraceImage(mainCamera, 
-                            shapes, 
-                            lights, 
-                            mainCamera.imageWidth, 
-                            mainCamera.imageHeight, 
-                            raytracedImage);
+            rt_data.samples = 1;
+            delete[] uploadRT();
+            rt_data.samples = 0;
+
+            // start
+            tracing = true;
+
+            glutTimerFunc(0, stepRT, 0);
+        }
+    }
+
+    if(key == 'e' || key == 'E')
+    {
+        if (tracing) {
+            tracing = false;
 
             int end = glutGet(GLUT_ELAPSED_TIME);
-            printf("Render took %.2f seconds.\n", (end - start) / 1000.0f);
+            printf("Rendered %d samples in %.2f seconds.\n", rt_data.samples, (end - rt_start) / 1000.0f);
 
-            //use this to set the value of the global texture handle for the image,
-            //raytracedTexHandle; this will get bound and used to draw a quad over 
-            //the screen that is textured with the raytraced image in renderScene().
-            registerOpenGLTexture(raytracedImage, 
-                                    mainCamera.imageWidth, 
-                                    mainCamera.imageHeight, 
-                                    raytracedTexHandle);
-
-
-            //also, save the image to file.
-            writeToPPM("output.ppm", mainCamera.imageWidth, mainCamera.imageHeight, raytracedImage);
-
-
-            //delete the raw image data to clean up after ourselves.
-            delete [] raytracedImage;
+            unsigned char *img = uploadRT();
+            writeToPPM("output.ppm", rt_data.width, rt_data.height, img);
+            delete[] img;
         }
     }
 
@@ -356,7 +402,6 @@ void initScene(unsigned int windowWidth, unsigned int windowHeight, float vertic
     //do some basic OpenGL setup
     glEnable(GL_DEPTH_TEST);
 
-    //for completeness: set the overall ambient light to 0 
     float black[4] = {0, 0, 0, 0};
     glLightModelfv(GL_LIGHT_MODEL_AMBIENT, black);
 
@@ -367,6 +412,12 @@ void initScene(unsigned int windowWidth, unsigned int windowHeight, float vertic
     glShadeModel(GL_SMOOTH);
 
     glDisable(GL_CULL_FACE);
+
+    float lightCol[4] = { .8, .8, .8, 1};
+    float ambientCol[4] = { 1, 1, 1, 1.0 };
+    glLightfv( GL_LIGHT0, GL_DIFFUSE,lightCol );
+    glLightfv( GL_LIGHT0, GL_AMBIENT, ambientCol );
+    glEnable( GL_LIGHT0 );
 }
 
 //
@@ -379,10 +430,7 @@ void loadSceneFromFile(const char *filename)
     string line;
 
     Material currentMaterial = Material(Point(1,1,1),
-                                        Point(0,0,0),
-                                        Point(0,0,0),
-                                        0.0f,
-                                        0.0f);
+                                        Point(0,0,0));
 
     ifstream in(filename);
     while(getline(in, line))
@@ -404,24 +452,16 @@ void loadSceneFromFile(const char *filename)
             shapes.push_back(s);
         } else if(!tokens[0].compare("material")) {
 
-            float dr, dg, db, ar, ag, ab, sr, sg, sb, s, ref;
+            float dr, dg, db, er, eg, eb;
             dr = atof( tokens[1].c_str() );
             dg = atof( tokens[2].c_str() );
             db = atof( tokens[3].c_str() );
-            ar = atof( tokens[4].c_str() );
-            ag = atof( tokens[5].c_str() );
-            ab = atof( tokens[6].c_str() );
-            sr = atof( tokens[7].c_str() );
-            sg = atof( tokens[8].c_str() );
-            sb = atof( tokens[9].c_str() );
-            s = atof( tokens[10].c_str() );
-            ref = atof( tokens[11].c_str() );
+            er = atof( tokens[4].c_str() );
+            eg = atof( tokens[5].c_str() );
+            eb = atof( tokens[6].c_str() );
 
             currentMaterial = Material(Point(dr, dg, db),
-                                        Point(ar, ag, ab),
-                                        Point(sr, sg, sb),
-                                        s,
-                                        ref);
+                                       Point(er, eg, eb));
 
         } else if(!tokens[0].compare("plane")) {
 
@@ -437,22 +477,14 @@ void loadSceneFromFile(const char *filename)
             p->material = currentMaterial;
 
             shapes.push_back(p);
+        } else if(!tokens[0].compare("sky")) {
 
-        } else if(!tokens[0].compare("light")) {
-            float x, y, z, r, g, b, rad;
-            x = atof( tokens[1].c_str() );
-            y = atof( tokens[2].c_str() );
-            z = atof( tokens[3].c_str() );
-            r = atof( tokens[4].c_str() );
-            g = atof( tokens[5].c_str() );
-            b = atof( tokens[6].c_str() );
-            rad = atof( tokens[7].c_str() );
+            float r, g, b;
+            r = atof( tokens[1].c_str() );
+            g = atof( tokens[2].c_str() );
+            b = atof( tokens[3].c_str() );
 
-            PointLight *pl = new PointLight(Point(x, y, z),
-                                            Point(r, g, b),
-                                            rad,
-                                            lights.size());
-            lights.push_back(pl);
+            skyColor = Point(r, g, b);
         }
     }
 

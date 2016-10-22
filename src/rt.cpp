@@ -2,10 +2,10 @@
 
 #include <math.h>
 
-bool nextHit(Ray &ray, IntersectionData &hit, float near, float far, Shape** &current, Shape** end) {
-    while (current != end) {
-        bool isHit = (*current)->intersectWithRay(ray, hit);
-        current++;
+bool rt_nextHit(Ray &ray, RTData &data, int &firstShape, IntersectionData &hit, float near, float far) {
+    while (firstShape < data.shapeCount) {
+        bool isHit = data.shapes[firstShape]->intersectWithRay(ray, hit);
+        firstShape++;
         if (isHit && hit.depth > near && hit.depth < far) {
             return true;
         }
@@ -13,18 +13,27 @@ bool nextHit(Ray &ray, IntersectionData &hit, float near, float far, Shape** &cu
     return false;
 }
 
-void traceRay(Ray &ray, Shape** begin, Shape** end, std::vector<PointLight*> &lights, float near, float far, float weight, Point &color, float &depth, int step_depth) {
-    if (step_depth > 10) return;
-
+Point rt_sample(Ray &ray, RTData &data, float near, float far, int depth) {
     IntersectionData hit;
     IntersectionData temp;
-    depth = far;
-    Shape** current = begin;
-    while (nextHit(ray, temp, near, depth, current, end)) {
+    int first = 0;
+    float nearest = far;
+    bool valid = false;
+    while(rt_nextHit(ray, data, first, temp, near, nearest)) {
+        valid = true;
         hit = temp;
-        depth = hit.depth;
+        nearest = hit.depth;
     }
-    if (hit.wasValidIntersection) {
-        color += weight * hit.material.diffuse;
+
+    if (valid) {
+        return hit.material.diffuse;
+    } else {
+        return data.skyEmission;
+    }
+}
+
+void rt_samplePath(Ray &ray, RTData &data, int destInd, float near, float far, int count) {
+    for (int i = 0; i < count; i++) {
+        data.dest[destInd] += rt_sample(ray, data, near, far, 0);
     }
 }

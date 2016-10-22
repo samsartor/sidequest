@@ -27,6 +27,8 @@ Plane::~Plane()
 
 void Plane::draw()
 {
+    material.setAsCurrent();
+    
     //an ugly situation, but: get two vectors in-plane using 
     //the normal dotted with some vector that's not the normal.
     Point localX, localZ;

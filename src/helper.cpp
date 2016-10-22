@@ -4,8 +4,6 @@
 #include <math.h>
 #include <stdlib.h>
 
-#include "rt.h"
-
 //
 //  float max()
 //
@@ -167,6 +165,21 @@ bool registerOpenGLTexture(unsigned char *imageData, int texWidth, int texHeight
     return true;
 }
 
+unsigned char *makeImageData(Point *values, int samples, float exposure, unsigned int texWidth, unsigned int texHeight)
+{
+    unsigned char *data = new unsigned char[texWidth * texHeight * 4];
+    for(unsigned int i = 0; i < texWidth; i++) {
+        for(unsigned int j = 0; j < texHeight; j++) {
+            int idx = (i*texWidth+j);
+            int idx4 = idx*4;
+            data[idx4+0] = (unsigned char)(exposure*values[idx].x/samples*255);
+            data[idx4+1] = (unsigned char)(exposure*values[idx].y/samples*255);
+            data[idx4+2] = (unsigned char)(exposure*values[idx].z/samples*255);
+            data[idx4+3] = (unsigned char) 255;
+        }
+    }
+    return data;
+}
 
 
 //
@@ -200,16 +213,7 @@ void writeToPPM(const char *filename, int width, int height, unsigned char *img)
     fclose(fp);
 } 
 
-
-
-
-
-
-
-
-
-
-
+/*
 //
 //  void raytraceImage()
 //
@@ -264,6 +268,4 @@ void raytraceImage(FreeCamera camera,
     printf("100.00%% of the way done...");
     fflush(stdout);
 }
-
-
-
+*/

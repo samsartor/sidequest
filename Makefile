@@ -22,7 +22,7 @@
 ########################################
 
 TARGET = sq2
-OBJECTS = main.o src/point.o src/freeCamera.o src/helper.o src/intersectionData.o src/plane.o src/pointLight.o src/ray.o src/sphere.o src/material.o src/rt.o
+OBJECTS = main.o src/point.o src/freeCamera.o src/helper.o src/intersectionData.o src/plane.o src/ray.o src/sphere.o src/material.o src/rt.o
 
 LOCAL_INC_PATH = /Users/jpaone/Desktop/include
 LOCAL_LIB_PATH = /Users/jpaone/Desktop/lib
