@@ -4,9 +4,13 @@
 
 PointLight::PointLight()
 {
-    diffuse = Point(1,1,1);
-    ambient = Point(0.2, 0.2, 0.2);
-    specular = Point(0,0,0);
+    #ifdef SHADE_PHONG
+        diffuse = Point(1,1,1);
+        ambient = Point(0.2, 0.2, 0.2);
+        specular = Point(0,0,0);
+    #else
+        emission = Point(1, 1, 1);
+    #endif
 
     lightNumber = 0;
 
@@ -15,20 +19,15 @@ PointLight::PointLight()
 }
 
 PointLight::PointLight(Point _position,
-                        Point _diffuse, 
-                        Point _ambient,
-                        Point _specular, 
+                        Point _emission, 
                         float _radius,
                         int _lightNumber)
 {
     position = _position;
-    diffuse = _diffuse;
-    ambient = _ambient;
-    specular = _specular;
+    emission = _emission;
     radius = _radius;
     lightNumber = _lightNumber;
 }
-
 
 PointLight::~PointLight()
 {
@@ -47,14 +46,14 @@ void PointLight::enableLightAndUpdateParameters()
 
     for(int i = 0; i < 3; i++)
     {
-        tempDiffuse[i] = diffuse.at(i);
-        tempAmbient[i] = ambient.at(i);
-        tempSpecular[i] = specular.at(i);
+        tempDiffuse[i] = emission.at(i);
+        tempAmbient[i] = 0;
+        tempSpecular[i] = 0;
     }
 
     tempDiffuse[3] = 1.0f;
-    tempAmbient[3] = 1.0f;
-    tempSpecular[3] = 1.0f;
+    tempAmbient[3] = 0.0f;
+    tempSpecular[3] = 0.0f;
 
 
     glLightfv(GL_LIGHT0 + lightNumber, GL_DIFFUSE, tempDiffuse);
@@ -102,9 +101,9 @@ void PointLight::draw()
     specularColor[2] = 0.0f;
     specularColor[3] = 1.0f;
 
-    emissiveColor[0] = diffuse.x;
-    emissiveColor[1] = diffuse.y;
-    emissiveColor[2] = diffuse.z;
+    emissiveColor[0] = emission.x;
+    emissiveColor[1] = emission.y;
+    emissiveColor[2] = emission.z;
     emissiveColor[3] = 1.0f;
 
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, diffuseColor);

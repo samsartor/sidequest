@@ -9,16 +9,13 @@
 
 #include "point.h"
 
-
 class PointLight
 {
 public:
 
     PointLight();
     PointLight(Point _position,
-                Point _diffuse, 
-                Point _ambient,
-                Point _specular, 
+                Point _emission,
                 float _radius,
                 int _lightNumber);
     ~PointLight();
@@ -33,11 +30,8 @@ public:
     int lightNumber;
 
     Point position;
-
-    Point diffuse;
-    Point ambient;
-    Point specular;
+    
+    Point emission;
 };
-
 
 #endif

@@ -34,7 +34,6 @@
 #include "sphere.h"
 #include "plane.h"
 
-
 using namespace std;
 
 
@@ -440,25 +439,17 @@ void loadSceneFromFile(const char *filename)
             shapes.push_back(p);
 
         } else if(!tokens[0].compare("light")) {
-            float x, y, z, dr, dg, db, ar, ag, ab, sr, sg, sb, rad;
+            float x, y, z, r, g, b, rad;
             x = atof( tokens[1].c_str() );
             y = atof( tokens[2].c_str() );
             z = atof( tokens[3].c_str() );
-            dr = atof( tokens[4].c_str() );
-            dg = atof( tokens[5].c_str() );
-            db = atof( tokens[6].c_str() );
-            ar = atof( tokens[7].c_str() );
-            ag = atof( tokens[8].c_str() );
-            ab = atof( tokens[9].c_str() );
-            sr = atof( tokens[10].c_str() );
-            sg = atof( tokens[11].c_str() );
-            sb = atof( tokens[12].c_str() );
-            rad = atof( tokens[13].c_str() );
+            r = atof( tokens[4].c_str() );
+            g = atof( tokens[5].c_str() );
+            b = atof( tokens[6].c_str() );
+            rad = atof( tokens[7].c_str() );
 
             PointLight *pl = new PointLight(Point(x, y, z),
-                                            Point(dr, dg, db),
-                                            Point(ar, ag, ab),
-                                            Point(sr, sg, sb),
+                                            Point(r, g, b),
                                             rad,
                                             lights.size());
             lights.push_back(pl);
