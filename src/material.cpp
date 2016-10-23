@@ -9,14 +9,20 @@
 Material::Material()
 {
     diffuse = Point(1,1,1);
+    specular = Point(1,1,1);
     emission = Point(0,0,0);
+    gloss = 0;
 }
 
 Material::Material(Point _diffuse,
-                    Point _emission)
+                   Point _specular,
+                   Point _emission,
+                   float _gloss)
 {
     diffuse = _diffuse;
+    specular = _specular;
     emission = _emission;
+    gloss = _gloss;
 }
 
 Material::~Material()
@@ -28,7 +34,7 @@ Material::~Material()
 void Material::setAsCurrent()
 {
     float *localDiffuse = new float[4];
-    float *localAmbient= new float[4];
+    float *localAmbient = new float[4];
 
     for(int i = 0; i < 3; i++)
     {

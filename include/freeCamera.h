@@ -35,7 +35,7 @@ public:
     void moveAlongDirection(float amount);
 
     Ray getPrimaryRay(float xPercent, float yPercent);
-    Ray getPrimaryRayThroughPixel(int pixelCoordX, int pixelCoordY, int imageWidth, int imageHeight);
+    Ray getPrimaryRayThroughPixel(int pixelCoordX, int pixelCoordY, int imageWidth, int imageHeight, float poffx, float poffy);
 
     Point position;
     Point globalUpVector;

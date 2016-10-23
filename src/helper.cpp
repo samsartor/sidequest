@@ -168,8 +168,8 @@ bool registerOpenGLTexture(unsigned char *imageData, int texWidth, int texHeight
 unsigned char *makeImageData(Point *values, int samples, float exposure, unsigned int texWidth, unsigned int texHeight)
 {
     unsigned char *data = new unsigned char[texWidth * texHeight * 4];
-    for(unsigned int i = 0; i < texWidth; i++) {
-        for(unsigned int j = 0; j < texHeight; j++) {
+    for(unsigned int i = 0; i < texHeight; i++) {
+        for(unsigned int j = 0; j < texWidth; j++) {
             int idx = (i*texWidth+j);
             int idx4 = idx*4;
             Point color = values[idx];

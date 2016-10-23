@@ -40,22 +40,18 @@ Point rt_sample(Ray &ray, RTData &data, float near, float far, int depth) {
                 dot_sn *= -1;
             }
 
+            //Point reflect = ray.direction - 2 * hit.surfaceNormal * dot(ray.direction, hit.surfaceNormal); 
+            //float dot_rn = dot(rdir, reflect);
+
             Ray next_path(hit.intersectionPoint, rdir);
             next_path.step(.0001);
 
-            sample += rt_sample(next_path, data, 0, 1e10, depth + 1);
-            sample *= 2 * dot_sn; // BRDF
-            sample = sample * hit.material.diffuse;
+            sample += rt_sample(next_path, data, 0, 1e10, depth + 1) * hit.material.diffuse;
+            sample *= dot_sn * 2; //pow(dot_rn, hit.material.gloss) * (hit.material.gloss + 2); // BRDF
         // }
         sample += hit.material.emission;
         return sample;
     } else {
         return data.skyEmission;
-    }
-}
-
-void rt_samplePath(Ray &ray, RTData &data, int destInd, float near, float far, int count) {
-    for (int i = 0; i < count; i++) {
-        data.dest[destInd] += rt_sample(ray, data, near, far, 0);
     }
 }

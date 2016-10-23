@@ -13,7 +13,9 @@ public:
 
     Material();
     Material(Point _diffuse,
-             Point _emission);
+    		 Point _specular,
+             Point _emission,
+             float _gloss);
     ~Material();
 
 // MISCELLANEOUS
@@ -23,7 +25,9 @@ public:
 // MEMBER VARIABLES
 
     Point diffuse;
+    Point specular;
     Point emission;
+    float gloss;
 };
 
 #endif

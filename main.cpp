@@ -270,8 +270,10 @@ void stepRT(int timercrap) {
                     fflush(stdout);
                 }
 
-                Ray prime = rt_camera.getPrimaryRayThroughPixel(j, i, rt_data.width, rt_data.height);
-                rt_samplePath(prime, rt_data, idx, rt_camera.nearClipPlane, rt_camera.farClipPlane, 5);
+                Ray prime = rt_camera.getPrimaryRayThroughPixel(j, i, rt_data.width, rt_data.height, getRand(), getRand());
+                for (int k = 0; k < 5; k++) {
+                    rt_samplePath(prime, rt_data, idx, rt_camera.nearClipPlane, rt_camera.farClipPlane);
+                }
             }
         }
         rt_data.samples += 5;
@@ -430,7 +432,9 @@ void loadSceneFromFile(const char *filename)
     string line;
 
     Material currentMaterial = Material(Point(1,1,1),
-                                        Point(0,0,0));
+                                        Point(1,1,1),
+                                        Point(0,0,0),
+                                        0);
 
     ifstream in(filename);
     while(getline(in, line))
@@ -452,16 +456,19 @@ void loadSceneFromFile(const char *filename)
             shapes.push_back(s);
         } else if(!tokens[0].compare("material")) {
 
-            float dr, dg, db, er, eg, eb;
+            float dr, dg, db, er, eg, eb, g;
             dr = atof( tokens[1].c_str() );
             dg = atof( tokens[2].c_str() );
             db = atof( tokens[3].c_str() );
             er = atof( tokens[4].c_str() );
             eg = atof( tokens[5].c_str() );
             eb = atof( tokens[6].c_str() );
+            g = atof( tokens[7].c_str() );
 
             currentMaterial = Material(Point(dr, dg, db),
-                                       Point(er, eg, eb));
+                                       Point(1, 1, 1), // does not do anything yet
+                                       Point(er, eg, eb),
+                                       g);
 
         } else if(!tokens[0].compare("plane")) {
 

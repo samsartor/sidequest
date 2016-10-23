@@ -191,9 +191,9 @@ Ray FreeCamera::getPrimaryRay(float xPercent, float yPercent)
 //  A helper function to get a ray given pixel coordinates, instead of percentages.
 //  Can be extended to return multiple rays for antialiasing!
 //
-Ray FreeCamera::getPrimaryRayThroughPixel(int pixelCoordX, int pixelCoordY, int imageWidth, int imageHeight)
+Ray FreeCamera::getPrimaryRayThroughPixel(int pixelCoordX, int pixelCoordY, int imageWidth, int imageHeight, float poffx, float poffy)
 {
     //for now... just shoot a regular primary ray through the center of the pixel.
-    return this->getPrimaryRay( (pixelCoordX+0.5) / (float)imageWidth,
-                                (pixelCoordY+0.5) / (float)imageHeight);
+    return this->getPrimaryRay( (pixelCoordX+poffx) / (float)imageWidth,
+                                (pixelCoordY+poffy) / (float)imageHeight);
 }
