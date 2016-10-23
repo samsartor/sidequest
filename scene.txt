@@ -1,9 +1,9 @@
-material 0.1 0.2 1.0 0 0 0
-sphere 5 4 0 0.7
-material 0.8 0.8 0.6 .5 .5 .5
-sphere 0 4 0 2
-material 0.0 0.9 0.9 0 0 0
+material 0.2 0.8 0.2 0 0 0
+sphere 5 2 0 1.5
+material 0.8 0.8 0.6 20 15 5
+sphere 0 8 0 2.3
+material 0.8 0.2 0.2 0 0 0
 sphere -7 4 0 3
-material 0.8 0.8 0.8 .1 .1 .1
+material 1.0 1.0 1.0 0 0 0
 plane 0 0 0 0 1 0
-sky 0.2 0.2 0.2
+sky .1 .1 .3

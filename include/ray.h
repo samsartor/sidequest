@@ -15,6 +15,10 @@ public:
     Ray(Point _origin, Point _direction);
     ~Ray();
 
+    inline void step(float dt) {
+    	origin += dt * direction;
+    }
+
 // MISCELLANEOUS
 
 // MEMBER VARIABLES

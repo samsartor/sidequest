@@ -172,9 +172,20 @@ unsigned char *makeImageData(Point *values, int samples, float exposure, unsigne
         for(unsigned int j = 0; j < texHeight; j++) {
             int idx = (i*texWidth+j);
             int idx4 = idx*4;
-            data[idx4+0] = (unsigned char)(exposure*values[idx].x/samples*255);
-            data[idx4+1] = (unsigned char)(exposure*values[idx].y/samples*255);
-            data[idx4+2] = (unsigned char)(exposure*values[idx].z/samples*255);
+            Point color = values[idx];
+            color *= exposure;
+            color /= samples;
+
+            // gamma correct
+            color.x = pow(color.x, 1/2.2);
+            color.y = pow(color.y, 1/2.2);
+            color.z = pow(color.z, 1/2.2);
+
+            color.clamp(0, 1);
+
+            data[idx4+0] = (unsigned char)(color.x*255);
+            data[idx4+1] = (unsigned char)(color.y*255);
+            data[idx4+2] = (unsigned char)(color.z*255);
             data[idx4+3] = (unsigned char) 255;
         }
     }
