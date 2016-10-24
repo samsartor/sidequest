@@ -15,7 +15,8 @@ public:
     Material(Point _diffuse,
     		 Point _specular,
              Point _emission,
-             float _gloss);
+             float _specularity,
+             float _roughness);
     ~Material();
 
 // MISCELLANEOUS
@@ -27,7 +28,8 @@ public:
     Point diffuse;
     Point specular;
     Point emission;
-    float gloss;
+    float specularity;
+    float roughness;
 };
 
 #endif
