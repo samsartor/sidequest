@@ -3,6 +3,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 //
 //  float max()
@@ -89,7 +90,8 @@ vector<string> tokenizeString(string input, string delimiters)
 
     //strip all delimiter characters from the front and end of the input string.
     string strippedInput;
-    unsigned int lowerValidIndex = 0, upperValidIndex = input.size() - 1; 
+    unsigned int lowerValidIndex = 0;
+    int upperValidIndex = input.size() - 1; 
     while(lowerValidIndex < input.size() && delimiters.find_first_of(input.at(lowerValidIndex), 0) != string::npos)
         lowerValidIndex++;
 

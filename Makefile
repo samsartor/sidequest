@@ -21,8 +21,14 @@
 ## compile against.
 ########################################
 
-TARGET = sq2
-OBJECTS = main.o src/point.o src/freeCamera.o src/helper.o src/intersectionData.o src/plane.o src/ray.o src/sphere.o src/material.o src/rt.o
+TARGET = sq-tracer
+INCLUDE = gl.h point.h freeCamera.h helper.h intersectionData.h shape.h plane.h ray.h sphere.h material.h rt.h
+OBJECTS = main.o point.o freeCamera.o helper.o intersectionData.o plane.o ray.o sphere.o material.o rt.o
+
+SDIR = src
+ODIR = obj
+
+DEPS = $(INCLUDES)
 
 LOCAL_INC_PATH = /Users/jpaone/Desktop/include
 LOCAL_LIB_PATH = /Users/jpaone/Desktop/lib
@@ -52,8 +58,9 @@ USING_SOIL = 0
 ## COMPILING INFO
 #############################
 
-CXX    = g++
-CFLAGS = -Wall -g
+CC    = clang
+CXX    = clang++
+CFLAGS = -Wall -g -std=c++11
 
 INCPATH += -I./include
 
@@ -209,22 +216,7 @@ endif
 all: $(TARGET)
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
-	if [ $(USING_OPENAL) -eq 1 ]; \
-	then \
-		if [ $(WINDOWS_AL) -eq 1 ]; \
-		then \
-			rm OpenAL32.dll; \
-			rm libalut.dll; \
-		fi \
-	fi 
-	if [ $(USING_GLEW) -eq 1 ]; \
-	then \
-		if [ $(WINDOWS_GLEW) -eq 1 ]; \
-		then \
-			rm cygGLEW-1-13.dll; \
-		fi \
-	fi  
+	rm -f $(addprefix $(ODIR)/,$(OBJECTS)) $(TARGET)
 
 depend:
 	rm -f Makefile.bak
@@ -233,16 +225,10 @@ depend:
 	echo '# DEPENDENCIES' >> Makefile
 	$(CXX) $(INCPATH) -MM *.cpp >> Makefile
 
-.c.o: 	
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
+$(ODIR)/%.o: $(SDIR)/%.cpp $(DEPS)
+	$(CXX) $(INCPATH) -c -o $@ $< $(CFLAGS)
 
-.cc.o: 	
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
-
-.cpp.o: 	
-	$(CXX) $(CFLAGS) $(INCPATH) -c -o $@ $<
-
-$(TARGET): $(OBJECTS) 
+$(TARGET): $(addprefix $(ODIR)/,$(OBJECTS))
 	$(CXX) $(CFLAGS) $(INCPATH) -o $@ $^ $(LIBPATH) $(LIBS)
 	if [ $(USING_OPENAL) -eq 1 ]; \
 	then \

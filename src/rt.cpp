@@ -4,25 +4,25 @@
 #include <math.h>
 
 
-bool rt_nextHit(Ray &ray, RTData &data, int &firstShape, IntersectionData &hit, float near, float far) {
+bool rt_nextHit(Ray &ray, RTData &data, int &firstShape, IntersectionData &hit, float clip_near, float clip_far) {
     while (firstShape < data.shapeCount) {
         bool isHit = data.shapes[firstShape]->intersectWithRay(ray, hit);
         firstShape++;
-        if (isHit && hit.depth > near && hit.depth < far) {
+        if (isHit && hit.depth > clip_near && hit.depth < clip_far) {
             return true;
         }
     }
     return false;
 }
 
-Point rt_sample(Ray &ray, RTData &data, float near, float far, int depth) {
+Point rt_sample(Ray &ray, RTData &data, float clip_near, float clip_far, int depth) {
     if (depth > 4) return Point(0, 0, 0);
     IntersectionData hit;
     IntersectionData temp;
     int first = 0;
-    float nearest = far;
+    float nearest = clip_far;
     bool valid = false;
-    while(rt_nextHit(ray, data, first, temp, near, nearest)) {
+    while(rt_nextHit(ray, data, first, temp, clip_near, nearest)) {
         valid = true;
         hit = temp;
         nearest = hit.depth;

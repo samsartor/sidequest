@@ -1,4 +1,5 @@
 /out/*
 output.ppm
-sq2
+sq-tracer
+sq-tracer.exe
 *.o
