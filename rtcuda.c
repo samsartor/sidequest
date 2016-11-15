@@ -148,6 +148,13 @@ __global__ void rt(float *buf, float *rays, float* data, int data_size, int buf_
 	opix[3] = depth;
 }
 
+__device__ unsigned char ftoi8(float val) {
+	val *= 255;
+	if (val < 0) val = 0;
+	if (val > 255) val = 255;
+	return (unsigned char) __float2uint_rn(val);
+}
+
 __global__ void to_rgb(unsigned char *rgb, float* buf, int size) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= size) return;
@@ -155,7 +162,7 @@ __global__ void to_rgb(unsigned char *rgb, float* buf, int size) {
 	int oi = i * 3;
 	int ii = i * 4;
 
-	rgb[oi + 0] = (unsigned char) __float2uint_rn(buf[ii + 0] * 255);
-	rgb[oi + 1] = (unsigned char) __float2uint_rn(buf[ii + 1] * 255);
-	rgb[oi + 2] = (unsigned char) __float2uint_rn(buf[ii + 2] * 255);
+	rgb[oi + 0] = ftoi8(buf[ii + 0]);
+	rgb[oi + 1] = ftoi8(buf[ii + 1]);
+	rgb[oi + 2] = ftoi8(buf[ii + 2]);
 }
