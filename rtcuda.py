@@ -21,14 +21,15 @@ pix = width * height
 print("Building scene data")
 
 data_count = 75
-data_size = 4 * data_count
+data_size = 7 * data_count
 
 #data = np.array([0, 0, 0, 1], np.float32)
 data = np.empty(data_size, np.float32)
 
-for i in range(0,data_size,4):
+for i in range(0,data_size,7):
 	data[i:(i+3)] = np.random.uniform(-1, 1, 3)
 	data[i+3] = np.random.uniform(.05, .1)
+	data[(i+4):(i+7)] = np.random.uniform(0, 1, 3)
 
 print("Building camera data")
 
@@ -59,7 +60,7 @@ init_ortho(
 
 print("Rendering")
 
-buf = drv.mem_alloc(4 * 4 * pix)
+buf = drv.mem_alloc(4 * 7 * pix)
 rt = cudasrc.get_function("rt")
 rt(
 	buf,

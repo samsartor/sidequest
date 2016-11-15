@@ -99,13 +99,16 @@ __global__ void rt(float *buf, float *rays, float* data, int data_size, int buf_
 
 	float depth = clip_back;
 	float norm[3];
-	float hit[3] = {-1, -1, -1};
+	float hit[3];
+	float color[3] = {0, 0, 0};
 
 	while (obj < end) {
 		float t_hit;
 
+
+		float *p_center = obj + 0;
 		float radius = obj[3];
-		float *p_center = obj;
+		float *obj_color = obj + 4;
 
 		float v_center[3];
 		v_sub(p_center, p_origin, v_center);
@@ -124,28 +127,28 @@ __global__ void rt(float *buf, float *rays, float* data, int data_size, int buf_
 		} else {
 			float t_back_to_hit = sqrt(radius_sq - dsq_closest);
 			t_hit = t_closest - t_back_to_hit;
+
+			if (t_hit < depth) {
+				depth = t_hit;
+
+				v_mul(v_ray, t_hit, hit);
+				v_add(p_origin, hit, hit);
+
+				v_sub(hit, p_center, norm);
+				v_mul(norm, 1 / radius, norm);
+
+				v_cpy(obj_color, color);
+			}
 		}
 
-		if (t_hit < depth) {
-			depth = t_hit;
-
-			v_mul(v_ray, t_hit, hit);
-			v_add(p_origin, hit, hit);
-
-			v_sub(hit, p_center, norm);
-			v_mul(norm, 1 / radius, norm);
-		}
-
-		obj += 4;
+		obj += 7;
 	}
 
-	float *opix = buf + i * 4;
+	float *opix = buf + i * 7;
 
-	opix[0] = hit[0] * .5 + .5;
-	opix[1] = hit[1] * .5 + .5;
-	opix[2] = hit[2] * .5 + .5;
-
-	opix[3] = depth;
+	v_cpy(color, opix);
+	v_cpy(hit, opix + 3);
+	opix[6] = depth;
 }
 
 __device__ unsigned char ftoi8(float val) {
@@ -160,7 +163,7 @@ __global__ void to_rgb(unsigned char *rgb, float* buf, int size) {
 	if (i >= size) return;
 
 	int oi = i * 3;
-	int ii = i * 4;
+	int ii = i * 7;
 
 	rgb[oi + 0] = ftoi8(buf[ii + 0]);
 	rgb[oi + 1] = ftoi8(buf[ii + 1]);
