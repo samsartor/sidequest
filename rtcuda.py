@@ -62,8 +62,16 @@ init_ortho(
 
 print("Rendering")
 
-buf = drv.mem_alloc(4 * 10 * pix)
+buf = drv.mem_alloc(4 * 7 * pix)
 rt = cudasrc.get_function("rt")
+rt(
+	buf,
+	np.int32(pix),
+	rays,
+	drv.In(data),
+	np.int32(data_count),
+	block=comp_block,
+	grid=comp_grid)
 rt(
 	buf,
 	np.int32(pix),

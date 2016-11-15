@@ -66,7 +66,6 @@ struct Sphere {
 
 struct BufElem {
 	float color[3];
-	float pos[3];
 	float depth;
 	float norm[3];
 };
@@ -97,6 +96,7 @@ __global__ void init_ortho(Ray *rays, int width, int height, float* cam, float h
 	v_mul(vy, ry, vy);
 
 	v_add(vx, vy, ray->origin);
+	v_add(ray->origin, cam, ray->origin);
 	v_cpy(cam + 3, ray->dir);
 }
 
@@ -112,7 +112,7 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data
 	float *depth = &elem->depth;
 	*depth = 100000;
 	float *norm = elem->norm;
-	float *hit = elem->pos;
+	float hit[3];
 	float *color = elem->color;
 
 	bool hit_none = true;
@@ -138,12 +138,13 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data
 		radius_sq *= radius_sq;
 
 		if (dsq_closest <= radius_sq) {
-			hit_none = false;
 
 			float t_back_to_hit = sqrt(radius_sq - dsq_closest);
 			t_hit = t_closest - t_back_to_hit;
 
-			if (t_hit < *depth) {
+			if (t_hit > 0 && t_hit < *depth) {
+				hit_none = false;
+
 				*depth = t_hit;
 
 				v_mul(incoming->dir, t_hit, hit);
@@ -159,9 +160,18 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data
 
 	if (hit_none) {
 		incoming->origin[0] = CUDART_NAN_F;
+		color[0] = 0;
+		color[1] = 0;
+		color[2] = 0;
 	} else {
+		float reflection[3];
+		v_cpy(norm, reflection);
+		v_mul(reflection, -2 * v_dot(incoming->dir, norm), reflection);
+		v_add(reflection, incoming->dir, reflection);
+		v_norm(reflection, reflection);
+
 		v_cpy(hit, incoming->origin);
-		v_cpy(norm, incoming->dir);
+		v_cpy(reflection, incoming->dir);
 	}
 }
 
