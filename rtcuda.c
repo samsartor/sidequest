@@ -1,3 +1,5 @@
+#define CUDART_NAN_F            __int_as_float(0x7fffffff)
+
 __device__ void v_add(float *a, float *b, float *o) {
 	o[0] = a[0] + b[0];
 	o[1] = a[1] + b[1];
@@ -51,19 +53,32 @@ __device__ void v_norm(float *a, float *out) {
 	v_mul(a, 1 / d, out);
 }
 
-__global__ void init_ortho(float* rays, int width, int height, float* cam, float hsize, float vsize) {
-	// cam + 0 = pos
-	// cam + 3 = dir
-	// cam + 6 = up
+struct Ray {
+	float origin[3];
+	float dir[3];
+};
 
-	// ray + 0 = origin
-	// ray + 3 = dir
+struct Sphere {
+	float center[3];
+	float radius;
+	float color[3];
+};
+
+struct BufElem {
+	float color[3];
+	float pos[3];
+	float depth;
+	float norm[3];
+};
 
 
+__global__ void init_ortho(Ray *rays, int width, int height, float* cam, float hsize, float vsize) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	int x = i % width;
 	int y = i / width;
 	if (y >= height) return;
+
+	Ray *ray = rays + i;
 
 	float rx = (float) x / width;
 	rx = (rx - .5) * hsize;
@@ -81,74 +96,73 @@ __global__ void init_ortho(float* rays, int width, int height, float* cam, float
 	v_mul(vx, rx, vx);
 	v_mul(vy, ry, vy);
 
-	v_add(vx, vy, rays + i * 6);
-	v_cpy(cam + 3, rays + i * 6 + 3);
+	v_add(vx, vy, ray->origin);
+	v_cpy(cam + 3, ray->dir);
 }
 
-__global__ void rt(float *buf, float *rays, float* data, int data_size, int buf_size) {
+__global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data_items) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= buf_size) return;
 
-	float *p_origin = &rays[i * 6];
-	float *v_ray = p_origin + 3;
+	Ray *incoming = rays + i;
+	BufElem *elem = buf + i;
 
-	float *obj = data;
-	float *end = data + data_size;
+	if (incoming->origin[0] == CUDART_NAN_F) return;
 
-	float clip_back = 100000;
+	float *depth = &elem->depth;
+	*depth = 100000;
+	float *norm = elem->norm;
+	float *hit = elem->pos;
+	float *color = elem->color;
 
-	float depth = clip_back;
-	float norm[3];
-	float hit[3];
-	float color[3] = {0, 0, 0};
+	bool hit_none = true;
 
-	while (obj < end) {
+	for (int j = 0; j < data_items; j++) {
+		Sphere *obj = data + j;
+
 		float t_hit;
 
-
-		float *p_center = obj + 0;
-		float radius = obj[3];
-		float *obj_color = obj + 4;
-
 		float v_center[3];
-		v_sub(p_center, p_origin, v_center);
+		v_sub(obj->center, incoming->origin, v_center);
 
-		float t_closest = v_dot(v_center, v_ray);
+		float t_closest = v_dot(v_center, incoming->dir);
 
 		float p_closest[3];
-		v_cpy(v_ray, p_closest);
+		v_cpy(incoming->dir, p_closest);
 		v_mul(p_closest, t_closest, p_closest);
-		v_add(p_origin, p_closest, p_closest);
+		v_add(incoming->origin, p_closest, p_closest);
 
-		float dsq_closest = v_dsq(p_closest, p_center);
-		float radius_sq = radius * radius;
-		if (dsq_closest > radius_sq) {
-			t_hit = clip_back;
-		} else {
+		float dsq_closest = v_dsq(p_closest, obj->center);
+
+		float radius_sq = obj->radius;
+		radius_sq *= radius_sq;
+
+		if (dsq_closest <= radius_sq) {
+			hit_none = false;
+
 			float t_back_to_hit = sqrt(radius_sq - dsq_closest);
 			t_hit = t_closest - t_back_to_hit;
 
-			if (t_hit < depth) {
-				depth = t_hit;
+			if (t_hit < *depth) {
+				*depth = t_hit;
 
-				v_mul(v_ray, t_hit, hit);
-				v_add(p_origin, hit, hit);
+				v_mul(incoming->dir, t_hit, hit);
+				v_add(incoming->origin, hit, hit);
 
-				v_sub(hit, p_center, norm);
-				v_mul(norm, 1 / radius, norm);
+				v_sub(obj->center, hit, norm);
+				v_mul(norm, 1 / obj->radius, norm);
 
-				v_cpy(obj_color, color);
+				v_cpy(obj->color, color);
 			}
 		}
-
-		obj += 7;
 	}
 
-	float *opix = buf + i * 7;
-
-	v_cpy(color, opix);
-	v_cpy(hit, opix + 3);
-	opix[6] = depth;
+	if (hit_none) {
+		incoming->origin[0] = CUDART_NAN_F;
+	} else {
+		v_cpy(hit, incoming->origin);
+		v_cpy(norm, incoming->dir);
+	}
 }
 
 __device__ unsigned char ftoi8(float val) {
@@ -158,14 +172,13 @@ __device__ unsigned char ftoi8(float val) {
 	return (unsigned char) __float2uint_rn(val);
 }
 
-__global__ void to_rgb(unsigned char *rgb, float* buf, int size) {
+__global__ void to_rgb(unsigned char *rgb, BufElem *buf, int size) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= size) return;
 
 	int oi = i * 3;
-	int ii = i * 7;
 
-	rgb[oi + 0] = ftoi8(buf[ii + 0]);
-	rgb[oi + 1] = ftoi8(buf[ii + 1]);
-	rgb[oi + 2] = ftoi8(buf[ii + 2]);
+	rgb[oi + 0] = ftoi8(buf[i].color[0]);
+	rgb[oi + 1] = ftoi8(buf[i].color[1]);
+	rgb[oi + 2] = ftoi8(buf[i].color[2]);
 }

@@ -7,6 +7,8 @@ import numpy as np
 
 from pycuda.compiler import SourceModule
 
+from pycuda.characterize import sizeof as gpu_sizeof;
+
 print("Loading CUDA Code")
 
 with open('rtcuda.c', 'r') as myfile:
@@ -60,13 +62,14 @@ init_ortho(
 
 print("Rendering")
 
-buf = drv.mem_alloc(4 * 7 * pix)
+buf = drv.mem_alloc(4 * 10 * pix)
 rt = cudasrc.get_function("rt")
 rt(
 	buf,
+	np.int32(pix),
 	rays,
 	drv.In(data),
-	np.int32(data_size),
+	np.int32(data_count),
 	block=comp_block,
 	grid=comp_grid)
 
@@ -79,6 +82,7 @@ to_rgb = cudasrc.get_function("to_rgb")
 to_rgb(
 	drv.Out(output),
 	buf,
+	np.int32(pix),
 	block=comp_block,
 	grid=comp_grid)
 
