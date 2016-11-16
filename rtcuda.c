@@ -14,10 +14,16 @@ __device__ void v_sub(float *a, float *b, float *o) {
 	o[2] = a[2] - b[2];
 }
 
-__device__ void v_mul(float *v, float b, float *o) {
+__device__ void v_cml(float *v, float b, float *o) {
 	o[0] = v[0] * b;
 	o[1] = v[1] * b;
 	o[2] = v[2] * b;
+}
+
+__device__ void v_mul(float *a, float *b, float *o) {
+	o[0] = a[0] * b[0];
+	o[1] = a[1] * b[1];
+	o[2] = a[2] * b[2];
 }
 
 __device__ void v_cpy(float *from, float *to) {
@@ -52,7 +58,7 @@ __device__ float v_dsq(float *a, float *b) {
 
 __device__ void v_norm(float *a, float *out) {
 	float d = sqrtf(v_msq(a));
-	v_mul(a, 1 / d, out);
+	v_cml(a, 1 / d, out);
 }
 
 struct Ray {
@@ -67,9 +73,9 @@ struct Sphere {
 };
 
 struct BufElem {
-	float color[3];
+	float val[3];
+	float filter[3];
 	float depth;
-	float norm[3];
 };
 
 
@@ -94,12 +100,29 @@ __global__ void init_ortho(Ray *rays, int width, int height, float* cam, float h
 	v_cross(vx, cam + 3, vy);
 	v_norm(vy, vy);
 
-	v_mul(vx, rx, vx);
-	v_mul(vy, ry, vy);
+	v_cml(vx, rx, vx);
+	v_cml(vy, ry, vy);
 
 	v_add(vx, vy, ray->origin);
 	v_add(ray->origin, cam, ray->origin);
 	v_cpy(cam + 3, ray->dir);
+}
+
+__global__ void clear_buf(BufElem *buf, int buf_size, float far) {
+	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= buf_size) return;
+
+	buf += i;
+
+	buf->val[0] = 0;
+	buf->val[1] = 0;
+	buf->val[2] = 0;
+
+	buf->filter[0] = 1;
+	buf->filter[1] = 1;
+	buf->filter[2] = 1;
+
+	buf->depth = far;
 }
 
 __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items) {
@@ -112,17 +135,14 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 	if (incoming->origin[0] == CUDART_NAN_F) return;
 
 	float *depth = &elem->depth;
-	*depth = 100000;
-	float *norm = elem->norm;
+	float norm[3];
 	float hit[3];
-	float *color = elem->color;
+	float color[3];
 
 	bool hit_none = true;
 
 	for (int j = 0; j < data_items; j++) {
 		Sphere *obj = (struct Sphere*) data;
-
-		// printf("%.2f\n", obj->center[0]);
 
 		float t_hit;
 
@@ -133,7 +153,7 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 
 		float p_closest[3];
 		v_cpy(incoming->dir, p_closest);
-		v_mul(p_closest, t_closest, p_closest);
+		v_cml(p_closest, t_closest, p_closest);
 		v_add(incoming->origin, p_closest, p_closest);
 
 		float dsq_closest = v_dsq(p_closest, obj->center);
@@ -151,11 +171,11 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 
 				*depth = t_hit;
 
-				v_mul(incoming->dir, t_hit, hit);
+				v_cml(incoming->dir, t_hit, hit);
 				v_add(incoming->origin, hit, hit);
 
 				v_sub(obj->center, hit, norm);
-				v_mul(norm, 1 / obj->radius, norm);
+				v_cml(norm, 1 / obj->radius, norm);
 
 				v_cpy(obj->color, color);
 			}
@@ -166,19 +186,24 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 
 	if (hit_none) {
 		incoming->origin[0] = CUDART_NAN_F;
-		color[0] = 0;
-		color[1] = 0;
-		color[2] = 0;
+		color[0] = .8;
+		color[1] = .8;
+		color[2] = .8;
 	} else {
 		float reflection[3];
 		v_cpy(norm, reflection);
-		v_mul(reflection, -2 * v_dot(incoming->dir, norm), reflection);
+		v_cml(reflection, -2 * v_dot(incoming->dir, norm), reflection);
 		v_add(reflection, incoming->dir, reflection);
 		v_norm(reflection, reflection);
 
 		v_cpy(hit, incoming->origin);
 		v_cpy(reflection, incoming->dir);
 	}
+
+	float filtered[3];
+	v_mul(color, elem->filter, filtered);
+	v_add(filtered, elem->val, elem->val);
+	v_mul(color, elem->filter, elem->filter);
 }
 
 __device__ unsigned char ftoi8(float val) {
@@ -194,7 +219,10 @@ __global__ void to_rgb(unsigned char *rgb, BufElem *buf, int size) {
 
 	int oi = i * 3;
 
-	rgb[oi + 0] = ftoi8(buf[i].color[0]);
-	rgb[oi + 1] = ftoi8(buf[i].color[1]);
-	rgb[oi + 2] = ftoi8(buf[i].color[2]);
+	float fin[3];
+	v_mul(buf[i].val, buf[i].filter, fin);
+
+	rgb[oi + 0] = ftoi8(fin[0]);
+	rgb[oi + 1] = ftoi8(fin[1]);
+	rgb[oi + 2] = ftoi8(fin[2]);
 }

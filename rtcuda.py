@@ -18,8 +18,8 @@ with open('rtcuda.c', 'r') as myfile:
 
 print("Starting")
 
-width = 1024
-height = 1024
+width = 2048
+height = 2048
 pix = width * height
 
 print("Building scene data")
@@ -28,11 +28,11 @@ object_count = 0
 
 scene = bytes();
 
-for i in range(0, 75):
+for i in range(100):
 	scene += struct.pack("12sf12s",
 		np.random.uniform(-1, 1, 3).astype(np.float32).tobytes(),
 		np.random.uniform(.05, .1),
-		np.random.uniform(0, 1, 3).astype(np.float32).tobytes())
+		np.random.uniform(.3, .9, 3).astype(np.float32).tobytes())
 	object_count += 1
 
 print("Uploading scene data")
@@ -66,28 +66,30 @@ init_ortho(
 	block=comp_block,
 	grid=comp_grid)
 
-print("Rendering")
+print("Clearing buffer")
 
 buf = drv.mem_alloc(4 * 7 * pix)
-rt = cudasrc.get_function("rt")
-rt(
+clear_buf = cudasrc.get_function("clear_buf")
+clear_buf(
 	buf,
 	np.int32(pix),
-	rays,
-	gpu_scene,
-	np.int32(object_count),
-	block=comp_block,
-	grid=comp_grid)
-rt(
-	buf,
-	np.int32(pix),
-	rays,
-	gpu_scene,
-	np.int32(object_count),
+	np.float32(10000),
 	block=comp_block,
 	grid=comp_grid)
 
-print("Render done")
+print("Rendering")
+
+rt = cudasrc.get_function("rt")
+for i in range(4):
+	rt(
+		buf,
+		np.int32(pix),
+		rays,
+		gpu_scene,
+		np.int32(object_count),
+		block=comp_block,
+		grid=comp_grid)
+
 print("Converting to image")
 
 output = np.empty(3 * pix, np.uint8)
