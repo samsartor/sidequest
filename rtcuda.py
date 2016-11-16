@@ -1,6 +1,8 @@
 
 print("Importing")
 
+import struct
+
 import pycuda.autoinit
 import pycuda.driver as drv
 import numpy as np
@@ -22,16 +24,20 @@ pix = width * height
 
 print("Building scene data")
 
-data_count = 75
-data_size = 7 * data_count
+object_count = 0
 
-#data = np.array([0, 0, 0, 1], np.float32)
-data = np.empty(data_size, np.float32)
+scene = bytes();
 
-for i in range(0,data_size,7):
-	data[i:(i+3)] = np.random.uniform(-1, 1, 3)
-	data[i+3] = np.random.uniform(.05, .1)
-	data[(i+4):(i+7)] = np.random.uniform(0, 1, 3)
+for i in range(0, 75):
+	scene += struct.pack("12sf12s",
+		np.random.uniform(-1, 1, 3).astype(np.float32).tobytes(),
+		np.random.uniform(.05, .1),
+		np.random.uniform(0, 1, 3).astype(np.float32).tobytes())
+	object_count += 1
+
+print("Uploading scene data")
+
+gpu_scene = drv.to_device(scene)
 
 print("Building camera data")
 
@@ -55,8 +61,8 @@ init_ortho(
 	np.int32(width),
 	np.int32(height),
 	drv.In(cam),
-	np.float32(3.5),
-	np.float32(3.5),
+	np.float32(3.2),
+	np.float32(3.2),
 	block=comp_block,
 	grid=comp_grid)
 
@@ -68,16 +74,16 @@ rt(
 	buf,
 	np.int32(pix),
 	rays,
-	drv.In(data),
-	np.int32(data_count),
+	gpu_scene,
+	np.int32(object_count),
 	block=comp_block,
 	grid=comp_grid)
 rt(
 	buf,
 	np.int32(pix),
 	rays,
-	drv.In(data),
-	np.int32(data_count),
+	gpu_scene,
+	np.int32(object_count),
 	block=comp_block,
 	grid=comp_grid)
 
@@ -94,12 +100,11 @@ to_rgb(
 	block=comp_block,
 	grid=comp_grid)
 
-from PIL import Image
-
 print("Saving image")
 
-img = Image.new('RGB', (width, height))
-img.putdata(map(tuple, np.split(output, pix)))
+from PIL import Image
+
+img = Image.frombytes('RGB', (width, height), output)
 img.save('image.png')
 
 print("Done");

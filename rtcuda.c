@@ -1,5 +1,7 @@
 #define CUDART_NAN_F            __int_as_float(0x7fffffff)
 
+#include "stdio.h"
+
 __device__ void v_add(float *a, float *b, float *o) {
 	o[0] = a[0] + b[0];
 	o[1] = a[1] + b[1];
@@ -100,7 +102,7 @@ __global__ void init_ortho(Ray *rays, int width, int height, float* cam, float h
 	v_cpy(cam + 3, ray->dir);
 }
 
-__global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data_items) {
+__global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= buf_size) return;
 
@@ -118,7 +120,9 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data
 	bool hit_none = true;
 
 	for (int j = 0; j < data_items; j++) {
-		Sphere *obj = data + j;
+		Sphere *obj = (struct Sphere*) data;
+
+		// printf("%.2f\n", obj->center[0]);
 
 		float t_hit;
 
@@ -156,6 +160,8 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, Sphere* data, int data
 				v_cpy(obj->color, color);
 			}
 		}
+
+		data += sizeof(Sphere);
 	}
 
 	if (hit_none) {
