@@ -3,13 +3,15 @@ print("Importing")
 
 import struct
 
+import random
+
 import pycuda.autoinit
 import pycuda.driver as drv
 import numpy as np
 
 from pycuda.compiler import SourceModule
 
-from pycuda.characterize import sizeof as gpu_sizeof;
+from pycuda.characterize import sizeof as gpu_sizeof
 
 print("Loading CUDA Code")
 
@@ -26,18 +28,46 @@ print("Building scene data")
 
 object_count = 0
 
-scene = bytes();
+scene = bytes()
 
 for i in range(100):
-	scene += struct.pack("12sf12s",
+	scene += struct.pack("12sfi",
 		np.random.uniform(-1, 1, 3).astype(np.float32).tobytes(),
-		np.random.uniform(.05, .1),
-		np.random.uniform(.3, .9, 3).astype(np.float32).tobytes())
+		random.uniform(.05, .1),
+		random.randint(1, 4))
 	object_count += 1
 
 print("Uploading scene data")
 
 gpu_scene = drv.to_device(scene)
+
+print("Building material data")
+
+mats = bytes()
+
+mats += struct.pack("12s12s",
+	np.array((0, 0, 0), dtype=np.float32).tobytes(),
+	np.array((.6, .6, .6), dtype=np.float32).tobytes())
+
+mats += struct.pack("12s12s",
+	np.array((0, 0, 0), dtype=np.float32).tobytes(),
+	np.array((.95, .95, .95), dtype=np.float32).tobytes())
+
+mats += struct.pack("12s12s",
+	np.array((.8, .2, .2), dtype=np.float32).tobytes(),
+	np.array((0, 0, 0), dtype=np.float32).tobytes())
+
+mats += struct.pack("12s12s",
+	np.array((.2, .8, .2), dtype=np.float32).tobytes(),
+	np.array((0, 0, 0), dtype=np.float32).tobytes())
+
+mats += struct.pack("12s12s",
+	np.array((.2, .2, .8), dtype=np.float32).tobytes(),
+	np.array((0, 0, 0), dtype=np.float32).tobytes())
+
+print("Uploading material data")
+
+gpu_mats = drv.to_device(mats)
 
 print("Building camera data")
 
@@ -87,6 +117,7 @@ for i in range(4):
 		rays,
 		gpu_scene,
 		np.int32(object_count),
+		gpu_mats,
 		block=comp_block,
 		grid=comp_grid)
 
@@ -109,4 +140,4 @@ from PIL import Image
 img = Image.frombytes('RGB', (width, height), output)
 img.save('image.png')
 
-print("Done");
+print("Done")

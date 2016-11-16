@@ -69,7 +69,7 @@ struct Ray {
 struct Sphere {
 	float center[3];
 	float radius;
-	float color[3];
+	int mat;
 };
 
 struct BufElem {
@@ -78,6 +78,10 @@ struct BufElem {
 	float depth;
 };
 
+struct Material {
+	float refcolor[3];
+	float emiss[3];
+};
 
 __global__ void init_ortho(Ray *rays, int width, int height, float* cam, float hsize, float vsize) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -125,7 +129,7 @@ __global__ void clear_buf(BufElem *buf, int buf_size, float far) {
 	buf->depth = far;
 }
 
-__global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items) {
+__global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items, Material* mats) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= buf_size) return;
 
@@ -137,7 +141,7 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 	float *depth = &elem->depth;
 	float norm[3];
 	float hit[3];
-	float color[3];
+	Material *mat = mats + 0;
 
 	bool hit_none = true;
 
@@ -177,7 +181,7 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 				v_sub(obj->center, hit, norm);
 				v_cml(norm, 1 / obj->radius, norm);
 
-				v_cpy(obj->color, color);
+				mat = mats + obj->mat;
 			}
 		}
 
@@ -186,9 +190,6 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 
 	if (hit_none) {
 		incoming->origin[0] = CUDART_NAN_F;
-		color[0] = .8;
-		color[1] = .8;
-		color[2] = .8;
 	} else {
 		float reflection[3];
 		v_cpy(norm, reflection);
@@ -201,9 +202,9 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 	}
 
 	float filtered[3];
-	v_mul(color, elem->filter, filtered);
+	v_mul(mat->emiss, elem->filter, filtered);
 	v_add(filtered, elem->val, elem->val);
-	v_mul(color, elem->filter, elem->filter);
+	v_mul(mat->refcolor, elem->filter, elem->filter);
 }
 
 __device__ unsigned char ftoi8(float val) {
@@ -219,8 +220,7 @@ __global__ void to_rgb(unsigned char *rgb, BufElem *buf, int size) {
 
 	int oi = i * 3;
 
-	float fin[3];
-	v_mul(buf[i].val, buf[i].filter, fin);
+	float *fin = buf[i].val;
 
 	rgb[oi + 0] = ftoi8(fin[0]);
 	rgb[oi + 1] = ftoi8(fin[1]);
