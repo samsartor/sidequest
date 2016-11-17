@@ -76,6 +76,8 @@ struct BufElem {
 	float val[3];
 	float filter[3];
 	float depth;
+
+	float out[3];
 };
 
 struct Material {
@@ -112,11 +114,17 @@ __global__ void init_ortho(Ray *rays, int width, int height, float* cam, float h
 	v_cpy(cam + 3, ray->dir);
 }
 
-__global__ void clear_buf(BufElem *buf, int buf_size, float far) {
+__global__ void clear_buf(BufElem *buf, int buf_size, float far, int sample_num) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= buf_size) return;
 
 	buf += i;
+
+	if (sample_num == 0) {
+		buf->out[0] = 0;
+		buf->out[1] = 0;
+		buf->out[2] = 0;
+	}
 
 	buf->val[0] = 0;
 	buf->val[1] = 0;
@@ -129,7 +137,7 @@ __global__ void clear_buf(BufElem *buf, int buf_size, float far) {
 	buf->depth = far;
 }
 
-__global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items, Material* mats) {
+__global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items, Material* mats, int seed, float* randsrc, int randsrc_size) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= buf_size) return;
 
@@ -188,23 +196,56 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 		data += sizeof(Sphere);
 	}
 
+	float prob = 1;
+
 	if (hit_none) {
 		incoming->origin[0] = CUDART_NAN_F;
 	} else {
-		float reflection[3];
-		v_cpy(norm, reflection);
-		v_cml(reflection, -2 * v_dot(incoming->dir, norm), reflection);
-		v_add(reflection, incoming->dir, reflection);
-		v_norm(reflection, reflection);
-
 		v_cpy(hit, incoming->origin);
-		v_cpy(reflection, incoming->dir);
+
+		float* rand = randsrc + (i * 4 + seed) % (randsrc_size - 4);
+		if (*rand < .2) {
+			float micro[3];
+			float reflection[3];
+
+			v_cpy(rand + 1, micro);
+			v_cml(micro, .06, micro);
+			v_add(norm, micro, micro);
+			v_norm(micro, micro);
+
+			v_cpy(micro, reflection);
+			v_cml(reflection, -2 * v_dot(incoming->dir, micro), reflection);
+			v_add(reflection, incoming->dir, reflection);
+			v_norm(reflection, reflection);
+
+			v_cpy(reflection, incoming->dir);
+		} else {
+			v_cpy(rand + 1, incoming->dir);
+			v_norm(incoming->dir, incoming->dir);
+
+			prob = -v_dot(norm, incoming->dir);
+			if (prob < 0) {
+				v_cml(incoming->dir, -1, incoming->dir);
+				prob *= -1;
+			}
+			prob *= 2;
+		}
 	}
 
 	float filtered[3];
 	v_mul(mat->emiss, elem->filter, filtered);
 	v_add(filtered, elem->val, elem->val);
 	v_mul(mat->refcolor, elem->filter, elem->filter);
+	v_cml(elem->filter, prob, elem->filter);
+}
+
+__global__ void post_rt(BufElem *buf, int size) {
+	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= size) return;
+
+	buf += i;
+
+	v_add(buf->val, buf->out, buf->out);
 }
 
 __device__ unsigned char ftoi8(float val) {
@@ -214,15 +255,15 @@ __device__ unsigned char ftoi8(float val) {
 	return (unsigned char) __float2uint_rn(val);
 }
 
-__global__ void to_rgb(unsigned char *rgb, BufElem *buf, int size) {
+__global__ void to_rgb(unsigned char *rgb, BufElem *buf, int size, int samples) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= size) return;
 
-	int oi = i * 3;
+	buf += i;
+	float *fin = buf->out;
+	v_cml(fin, 1 / (float) samples, fin);
 
-	float *fin = buf[i].val;
-
-	rgb[oi + 0] = ftoi8(fin[0]);
-	rgb[oi + 1] = ftoi8(fin[1]);
-	rgb[oi + 2] = ftoi8(fin[2]);
+	rgb[i * 3 + 0] = ftoi8(fin[0]);
+	rgb[i * 3 + 1] = ftoi8(fin[1]);
+	rgb[i * 3 + 2] = ftoi8(fin[2]);
 }

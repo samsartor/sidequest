@@ -8,6 +8,7 @@ import random
 import pycuda.autoinit
 import pycuda.driver as drv
 import numpy as np
+from pycuda.curandom import rand as curand
 
 from pycuda.compiler import SourceModule
 
@@ -47,11 +48,11 @@ mats = bytes()
 
 mats += struct.pack("12s12s",
 	np.array((0, 0, 0), dtype=np.float32).tobytes(),
-	np.array((.6, .6, .6), dtype=np.float32).tobytes())
+	np.array((.2, .2, .2), dtype=np.float32).tobytes())
 
 mats += struct.pack("12s12s",
 	np.array((0, 0, 0), dtype=np.float32).tobytes(),
-	np.array((.95, .95, .95), dtype=np.float32).tobytes())
+	np.array((5, 5, 5), dtype=np.float32).tobytes())
 
 mats += struct.pack("12s12s",
 	np.array((.8, .2, .2), dtype=np.float32).tobytes(),
@@ -82,44 +83,67 @@ def ceil(x):
 comp_block = (256,1,1)
 comp_grid = (ceil(pix/256.0),1)
 
-print("Building initial rays")
-
-rays = drv.mem_alloc(4 * 6 * pix)
-init_ortho = cudasrc.get_function("init_ortho")
-init_ortho(
-	rays,
-	np.int32(width),
-	np.int32(height),
-	drv.In(cam),
-	np.float32(3.2),
-	np.float32(3.2),
-	block=comp_block,
-	grid=comp_grid)
-
-print("Clearing buffer")
-
-buf = drv.mem_alloc(4 * 7 * pix)
-clear_buf = cudasrc.get_function("clear_buf")
-clear_buf(
-	buf,
-	np.int32(pix),
-	np.float32(10000),
-	block=comp_block,
-	grid=comp_grid)
-
 print("Rendering")
 
+rand_count = 32235
+
 rt = cudasrc.get_function("rt")
-for i in range(4):
-	rt(
+post_rt = cudasrc.get_function("post_rt")
+clear_buf = cudasrc.get_function("clear_buf")
+init_ortho = cudasrc.get_function("init_ortho")
+
+print("\tAllocing buffers")
+
+buf = drv.mem_alloc(4 * 10 * pix)
+rays = drv.mem_alloc(4 * 6 * pix)
+
+print("\tGenerating rands")
+rands = curand((rand_count,))
+
+samples = 0;
+
+for i in range(50):
+	print("\tClearing buffer")
+	clear_buf(
 		buf,
 		np.int32(pix),
-		rays,
-		gpu_scene,
-		np.int32(object_count),
-		gpu_mats,
+		np.float32(10000),
+		np.int32(samples),
 		block=comp_block,
 		grid=comp_grid)
+
+	print("\tBuilding primary rays")
+	init_ortho(
+		rays,
+		np.int32(width),
+		np.int32(height),
+		drv.In(cam),
+		np.float32(3.2),
+		np.float32(3.2),
+		block=comp_block,
+		grid=comp_grid)
+
+	print("\tTracing")
+	for i in range(4):
+		rt(
+			buf,
+			np.int32(pix),
+			rays,
+			gpu_scene,
+			np.int32(object_count),
+			gpu_mats,
+			np.int32(random.randint(0, rand_count - 1)),
+			rands,
+			np.int32(rand_count),
+			block=comp_block,
+			grid=comp_grid)
+
+	post_rt(
+		buf,
+		np.int32(pix),
+		block=comp_block,
+		grid=comp_grid)
+	samples += 1;
 
 print("Converting to image")
 
@@ -130,6 +154,7 @@ to_rgb(
 	drv.Out(output),
 	buf,
 	np.int32(pix),
+	np.int32(samples),
 	block=comp_block,
 	grid=comp_grid)
 
