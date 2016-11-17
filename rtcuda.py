@@ -46,24 +46,39 @@ print("Building material data")
 
 mats = bytes()
 
-mats += struct.pack("12s12s",
+mats += struct.pack("12s12sff12s",
 	np.array((0, 0, 0), dtype=np.float32).tobytes(),
-	np.array((.2, .2, .2), dtype=np.float32).tobytes())
-
-mats += struct.pack("12s12s",
 	np.array((0, 0, 0), dtype=np.float32).tobytes(),
-	np.array((5, 5, 5), dtype=np.float32).tobytes())
+	0,
+	0,
+	np.array((.24, .24, .3), dtype=np.float32).tobytes())
 
-mats += struct.pack("12s12s",
+mats += struct.pack("12s12sff12s",
+	np.array((0, 0, 0), dtype=np.float32).tobytes(),
+	np.array((0, 0, 0), dtype=np.float32).tobytes(),
+	0,
+	0,
+	np.array((6, 5, 3), dtype=np.float32).tobytes())
+
+mats += struct.pack("12s12sff12s",
 	np.array((.8, .2, .2), dtype=np.float32).tobytes(),
+	np.array((1, 1, 1), dtype=np.float32).tobytes(),
+	.1,
+	.05,
 	np.array((0, 0, 0), dtype=np.float32).tobytes())
 
-mats += struct.pack("12s12s",
+mats += struct.pack("12s12sff12s",
 	np.array((.2, .8, .2), dtype=np.float32).tobytes(),
+	np.array((1, 1, 1), dtype=np.float32).tobytes(),
+	.1,
+	.05,
 	np.array((0, 0, 0), dtype=np.float32).tobytes())
 
-mats += struct.pack("12s12s",
-	np.array((.2, .2, .8), dtype=np.float32).tobytes(),
+mats += struct.pack("12s12sff12s",
+	np.array((.9, .9, .9), dtype=np.float32).tobytes(),
+	np.array((1, 1, 1), dtype=np.float32).tobytes(),
+	.05,
+	.2,
 	np.array((0, 0, 0), dtype=np.float32).tobytes())
 
 print("Uploading material data")
@@ -100,15 +115,15 @@ rays = drv.mem_alloc(4 * 6 * pix)
 print("\tGenerating rands")
 rands = curand((rand_count,))
 
-samples = 0;
+samples = 300;
 
-for i in range(50):
+for i in range(samples):
 	print("\tClearing buffer")
 	clear_buf(
 		buf,
 		np.int32(pix),
 		np.float32(10000),
-		np.int32(samples),
+		np.int32(i),
 		block=comp_block,
 		grid=comp_grid)
 
@@ -123,7 +138,7 @@ for i in range(50):
 		block=comp_block,
 		grid=comp_grid)
 
-	print("\tTracing")
+	print("\tTracing %d/%d" % (i, samples))
 	for i in range(4):
 		rt(
 			buf,
@@ -143,7 +158,6 @@ for i in range(50):
 		np.int32(pix),
 		block=comp_block,
 		grid=comp_grid)
-	samples += 1;
 
 print("Converting to image")
 

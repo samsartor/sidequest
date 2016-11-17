@@ -81,7 +81,10 @@ struct BufElem {
 };
 
 struct Material {
-	float refcolor[3];
+	float diff[3];
+	float spec[3];
+	float refl;
+	float rough;
 	float emiss[3];
 };
 
@@ -197,6 +200,7 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 	}
 
 	float prob = 1;
+	float *color;
 
 	if (hit_none) {
 		incoming->origin[0] = CUDART_NAN_F;
@@ -204,12 +208,12 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 		v_cpy(hit, incoming->origin);
 
 		float* rand = randsrc + (i * 4 + seed) % (randsrc_size - 4);
-		if (*rand < .2) {
+		if (*rand < mat->refl) {
 			float micro[3];
 			float reflection[3];
 
 			v_cpy(rand + 1, micro);
-			v_cml(micro, .06, micro);
+			v_cml(micro, mat->rough, micro);
 			v_add(norm, micro, micro);
 			v_norm(micro, micro);
 
@@ -219,6 +223,8 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 			v_norm(reflection, reflection);
 
 			v_cpy(reflection, incoming->dir);
+
+			color = mat->spec;
 		} else {
 			v_cpy(rand + 1, incoming->dir);
 			v_norm(incoming->dir, incoming->dir);
@@ -229,13 +235,15 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 				prob *= -1;
 			}
 			prob *= 2;
+
+			color = mat->diff;
 		}
 	}
 
 	float filtered[3];
 	v_mul(mat->emiss, elem->filter, filtered);
 	v_add(filtered, elem->val, elem->val);
-	v_mul(mat->refcolor, elem->filter, elem->filter);
+	v_mul(color, elem->filter, elem->filter);
 	v_cml(elem->filter, prob, elem->filter);
 }
 
