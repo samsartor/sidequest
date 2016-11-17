@@ -16,7 +16,7 @@ from pycuda.characterize import sizeof as gpu_sizeof
 
 print("Loading CUDA Code")
 
-with open('rtcuda.c', 'r') as myfile:
+with open('sidequest-cuda-rt.c', 'r') as myfile:
 	cudasrc = SourceModule(myfile.read())
 
 print("Starting")
