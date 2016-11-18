@@ -140,11 +140,12 @@ __global__ void clear_buf(BufElem *buf, int buf_size, float far, int sample_num)
 	buf->depth = far;
 }
 
-__global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, int data_items, Material* mats, int seed, float* randsrc, int randsrc_size) {
+__global__ void rt(BufElem *buf, int buf_size, Ray *rays, Ray *rays_out, unsigned char* data, int data_items, Material* mats, int seed, float* randsrc, int randsrc_size) {
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= buf_size) return;
 
 	Ray *incoming = rays + i;
+	Ray *outgoing = rays_out + i;
 	BufElem *elem = buf + i;
 
 	if (incoming->origin[0] == CUDART_NAN_F) return;
@@ -189,7 +190,7 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 				v_cml(incoming->dir, t_hit, hit);
 				v_add(incoming->origin, hit, hit);
 
-				v_sub(obj->center, hit, norm);
+				v_sub(hit, obj->center, norm);
 				v_cml(norm, 1 / obj->radius, norm);
 
 				mat = mats + obj->mat;
@@ -203,9 +204,9 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 	float *color;
 
 	if (hit_none) {
-		incoming->origin[0] = CUDART_NAN_F;
+		outgoing->origin[0] = CUDART_NAN_F;
 	} else {
-		v_cpy(hit, incoming->origin);
+		v_cpy(hit, outgoing->origin);
 
 		float* rand = randsrc + (i * 4 + seed) % (randsrc_size - 4);
 		if (*rand < mat->refl) {
@@ -222,16 +223,16 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 			v_add(reflection, incoming->dir, reflection);
 			v_norm(reflection, reflection);
 
-			v_cpy(reflection, incoming->dir);
+			v_cpy(reflection, outgoing->dir);
 
 			color = mat->spec;
 		} else {
-			v_cpy(rand + 1, incoming->dir);
-			v_norm(incoming->dir, incoming->dir);
+			v_cpy(rand + 1, outgoing->dir);
+			v_norm(outgoing->dir, outgoing->dir);
 
-			prob = -v_dot(norm, incoming->dir);
+			prob = v_dot(norm, outgoing->dir);
 			if (prob < 0) {
-				v_cml(incoming->dir, -1, incoming->dir);
+				v_cml(outgoing->dir, -1, outgoing->dir);
 				prob *= -1;
 			}
 			prob *= 2;
@@ -243,8 +244,9 @@ __global__ void rt(BufElem *buf, int buf_size, Ray *rays, unsigned char* data, i
 	float filtered[3];
 	v_mul(mat->emiss, elem->filter, filtered);
 	v_add(filtered, elem->val, elem->val);
+
 	v_mul(color, elem->filter, elem->filter);
-	v_cml(elem->filter, prob, elem->filter);
+	//v_cml(elem->filter, prob, elem->filter);
 }
 
 __global__ void post_rt(BufElem *buf, int size) {
@@ -267,11 +269,11 @@ __global__ void to_rgb(unsigned char *rgb, BufElem *buf, int size, int samples) 
 	const unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= size) return;
 
-	buf += i;
-	float *fin = buf->out;
+	rgb += i * 3;
+	float *fin = buf[i].out;
 	v_cml(fin, 1 / (float) samples, fin);
 
-	rgb[i * 3 + 0] = ftoi8(fin[0]);
-	rgb[i * 3 + 1] = ftoi8(fin[1]);
-	rgb[i * 3 + 2] = ftoi8(fin[2]);
+	rgb[0] = ftoi8(fin[0]);
+	rgb[1] = ftoi8(fin[1]);
+	rgb[2] = ftoi8(fin[2]);
 }
