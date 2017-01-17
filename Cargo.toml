@@ -1,0 +1,11 @@
+[package]
+name = "sidequest"
+version = "0.1.0"
+authors = ["Sam Sartor <me@samsartor.com>"]
+
+[dependencies]
+nalgebra = "0.10.1"
+num_cpus = "1.2.1"
+rayon = "0.6.0"
+image = "0.12.1"
+serde_json = "0.8.4"
