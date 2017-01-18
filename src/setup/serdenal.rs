@@ -5,7 +5,8 @@ use std::vec::IntoIter;
 use std::iter::FromIterator;
 use nalgebra;
 use num_traits::identities::Zero;
-use std::ops::{Deref, DerefMut};
+
+use ::setup::Sd;
 
 enum SizeMode {
     Any,
@@ -56,32 +57,6 @@ impl<N, C> de::Visitor for VectorVisitor<N, C>
         }
 
         Ok(Sd::new((self.from)(values.into_iter())))
-    }
-}
-
-pub struct Sd<V> {
-    v: V
-}
-
-impl<V> Sd<V> {
-    pub fn new(v: V) -> Sd<V> {
-        Sd {
-            v: v
-        }
-    }
-}
-
-impl<V> Deref for Sd<V> {
-    type Target = V;
-
-    fn deref(&self) -> &Self::Target  {
-        &self.v
-    }
-}
-
-impl<V> DerefMut for Sd<V> {
-    fn deref_mut(&mut self) -> &mut Self::Target  {
-        &mut self.v
     }
 }
 
