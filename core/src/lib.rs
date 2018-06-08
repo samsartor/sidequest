@@ -156,7 +156,7 @@ pub fn render_spheres<C, P, PF>(
                 (None, _) => b,
                 (_, None) => a,
                 (Some(ai), Some(bi)) if ai.t > bi.t => b,
-                _ => b,
+                _ => a,
             });
         *v = pixel(hit);
     }
