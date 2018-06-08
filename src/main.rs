@@ -7,7 +7,7 @@ use sidequest::core::*;
 use std::f64::consts::FRAC_PI_4;
 
 fn main() -> Result<(), Error> {
-    let size = 1024;
+    let size = 512;
     let mut img = ImgVec::new(vec![[0, 0, 0]; size * size], size, size);
 
     {
@@ -38,7 +38,7 @@ fn main() -> Result<(), Error> {
             Sphere::new(Point3::new(0., 0., -4.), 1.),
         ], &cam, imgref, |b| match b {
             Some(i) => [splat(i.norm[0]), splat(i.norm[1]), splat(i.norm[2])],
-            None => [0, 0, 0],
+            None => [128, 128, 128],
         });
     }
 
@@ -47,7 +47,7 @@ fn main() -> Result<(), Error> {
     let buf: *const [u8; 3] = img.buf.as_ptr();
 
     image::save_buffer(
-        "test.png",
+        "demo.png",
         unsafe { from_raw_parts(transmute(buf), img.buf.len() * 3) },
         img.width() as u32,
         img.height() as u32,
