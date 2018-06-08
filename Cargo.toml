@@ -7,6 +7,8 @@ authors = ["Sam Sartor <me@samsartor.com>"]
 sidequest_core = { path="core" }
 sidequest_engine = { path="engine" }
 sidequest_pbr = { path="pbr" }
+image = "0.19"
+failure = "0.1"
 
 [workspace]
 members = ["core", "pbr"]

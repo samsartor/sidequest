@@ -7,7 +7,8 @@ extern crate serde;
 extern crate serde_derive;
 
 pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3};
-use nalg::geometry::{Isometry3, Perspective3};
+pub use imgref::ImgVec;
+pub use nalg::geometry::{Isometry3, Perspective3};
 use ncol::shape::Ball;
 use ncol::query::{RayCast, Ray as NcolRay};
 use imgref::ImgRefMut;
@@ -81,23 +82,22 @@ impl Camera<Point2<f64>> for PerspectiveCamera {
     fn look(&self, from: Point2<f64>) -> Option<Ray<f64>> {
         let near = Point3::new(from.coords.x, from.coords.y, 0.);
         let near = self.projection.unproject_point(&near);
-        let far = Point3::new(from.coords.x, from.coords.y, 1.);
+        let far = Point3::new(from.coords.x, from.coords.y, -1.);
         let far = self.projection.unproject_point(&far);
         let origin = self.position * near;
         let distant = self.position * far;
-        let dir = (distant - origin).normalize();
-        Some(Ray::new(origin, dir))
+        let dir = Unit::new_normalize(distant - origin);
+        Some(Ray::new(origin, dir.unwrap()))
     }
 }
 
-pub struct RasterLayer<'a, C: Camera<Point2<f64>>, P: 'a> {
+pub struct RasterLayer<'a, P: 'a> {
     pub target: ImgRefMut<'a, P>,
-    pub camera: C,
 }
 
-impl<'a, C: Camera<Point2<f64>>, P> RasterLayer<'a, C, P> {
-    pub fn new(target: ImgRefMut<'a, P>, camera: C) -> RasterLayer<'a, C, P> {
-        RasterLayer { target, camera }
+impl<'a, P> RasterLayer<'a, P> {
+    pub fn new(target: ImgRefMut<'a, P>) -> RasterLayer<'a, P> {
+        RasterLayer { target }
     }
 
     /// Maximum of width and height.
@@ -112,22 +112,52 @@ impl<'a, C: Camera<Point2<f64>>, P> RasterLayer<'a, C, P> {
 
     /// Half the width/height of a single pixel in view space.
     pub fn pixel_radius(&self) -> f64 {
-        1. / self.dim() as f64
+        self.pixel_size() / 2.
     }
 
-    /// Iterate over pixel coordinates in screen space.
-    pub fn pixels(&self) -> impl Iterator<Item=(usize, usize)> + '_ {
-        let w = self.target.width();
-        let h = self.target.height();
-        (0..w).flat_map(move |x| (0..h).map(move |y| (x, y)))
+    /// Mutate over pixels in view space.
+    pub fn pixels_mut<'s>(&'s mut self)
+        -> impl Iterator<Item=(Point2<f64>, &'s mut P)> + 's
+    {
+        let c = self.centers();
+        self.target.rows_mut()
+            .enumerate()
+            .flat_map(move |(y, r)| r.iter_mut()
+            .enumerate()
+            .map(move |(x, p)| (c(x, y), p)))
     }
 
-    /// Get the center of a pixel in view space.
-    pub fn center(&self, x: usize, y: usize) -> Point2<f64> {
+    /// Returns a function that can compute the center of any pixel in view space.
+    pub fn centers(&self) -> impl Fn(usize, usize) -> Point2<f64> + Copy {
         let s = self.pixel_size();
-        Point2::new(
+        move |x, y| Point2::new(
             (x as f64 + 0.5) * s - 1.,
             (y as f64 + 0.5) * s - 1.,
         )
+    }
+}
+
+pub fn render_spheres<C, P, PF>(
+    spheres: &[Sphere<f64>],
+    camera: &C,
+    mut raster: RasterLayer<P>,
+    pixel: PF,
+)
+    where C: Camera<Point2<f64>, F=f64>, PF: Fn(Option<Impact<f64>>) -> P
+{
+    for (p, v) in raster.pixels_mut() {
+        let ray = match camera.look(p) {
+            Some(r) => r,
+            None => continue,
+        };
+        let hit = spheres.iter()
+            .map(|s| s.cast(ray))
+            .fold(None, |a, b| match (a, b) {
+                (None, _) => b,
+                (_, None) => a,
+                (Some(ai), Some(bi)) if ai.t > bi.t => b,
+                _ => b,
+            });
+        *v = pixel(hit);
     }
 }
