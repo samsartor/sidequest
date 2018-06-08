@@ -1,14 +1,12 @@
 [package]
 name = "sidequest"
-version = "0.1.0"
+version = "0.0.0"
 authors = ["Sam Sartor <me@samsartor.com>"]
 
 [dependencies]
-num-traits = "0.1.36"
-nalgebra = "0.10.1"
-num_cpus = "1.2.1"
-rayon = "0.6.0"
-image = "0.12.1"
-serde = "0.9.0-rc1"
-serde_derive = "0.9.0-rc1"
-serde_json = {git = "https://github.com/serde-rs/json/"}
+sidequest_core = { path="core" }
+sidequest_engine = { path="engine" }
+sidequest_pbr = { path="pbr" }
+
+[workspace]
+members = ["core", "pbr"]

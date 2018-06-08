@@ -1,0 +1,9 @@
+[package]
+name = "sidequest_engine"
+version = "0.0.0"
+authors = ["Sam Sartor <me@samsartor.com>"]
+
+[dependencies]
+rayon = "^1.0"
+sidequest_core = { path="../core" }
+
