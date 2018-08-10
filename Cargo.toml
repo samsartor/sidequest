@@ -5,11 +5,9 @@ authors = ["Sam Sartor <me@samsartor.com>"]
 
 [dependencies]
 sidequest_core = { path="core" }
-sidequest_engine = { path="engine" }
-sidequest_pbr = { path="pbr" }
-image = "0.19"
 failure = "0.1"
+rayon = "^1.0.2"
 gif = "0.10"
 
 [workspace]
-members = ["core", "pbr"]
+members = ["core"]

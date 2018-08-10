@@ -9,6 +9,7 @@ serde = "^1.0"
 serde_derive = "^1.0"
 imgref = "^1.3"
 ncollide = "0.14"
+rayon = "^1.0.2"
 
 [dependencies.nalgebra]
 version = "0.14"

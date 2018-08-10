@@ -1,6 +1,7 @@
 pub extern crate nalgebra as nalg;
 pub extern crate ncollide as ncol;
 pub extern crate imgref;
+pub extern crate rayon;
 extern crate num_traits;
 extern crate serde;
 #[macro_use]
@@ -137,27 +138,3 @@ impl<'a, P> RasterLayer<'a, P> {
     }
 }
 
-pub fn render_spheres<C, P, PF>(
-    spheres: &[Sphere<f64>],
-    camera: &C,
-    mut raster: RasterLayer<P>,
-    pixel: PF,
-)
-    where C: Camera<Point2<f64>, F=f64>, PF: Fn(Option<Impact<f64>>) -> P
-{
-    for (p, v) in raster.pixels_mut() {
-        let ray = match camera.look(p) {
-            Some(r) => r,
-            None => continue,
-        };
-        let hit = spheres.iter()
-            .map(|s| s.cast(ray))
-            .fold(None, |a, b| match (a, b) {
-                (None, _) => b,
-                (_, None) => a,
-                (Some(ai), Some(bi)) if ai.t > bi.t => b,
-                _ => a,
-            });
-        *v = pixel(hit);
-    }
-}
