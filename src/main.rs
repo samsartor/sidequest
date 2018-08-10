@@ -1,11 +1,13 @@
 extern crate sidequest;
 extern crate gif;
 extern crate failure;
+extern crate rayon;
 
 use failure::Error;
 use gif::{SetParameter, Encoder, Frame, Repeat};
 use sidequest::core::*;
-use self::rayon::prelude::*;
+use self::palette::{Pixel, LinSrgb, Srgb, Xyz, named as colors};
+use rayon::prelude::*;
 use std::f64::consts::{FRAC_PI_4, PI};
 use std::fs::File;
 
@@ -37,8 +39,11 @@ pub fn render_spheres<C, P: Send, PF>(
     }
 }
 
+fn smash(norm: f64) -> f32 {
+    (norm as f32 + 1.) / 2.
+}
+
 fn main() -> Result<(), Error> {
-    const ELEMS: usize = 3;
     let size = 512;
 
     let scene = &[
@@ -52,11 +57,16 @@ fn main() -> Result<(), Error> {
 
     println!("RENDERING & ENCODING");
 
+
+    let red: Xyz = LinSrgb::new(0.95, 0.05, 0.05).into();
+    let green: Xyz = LinSrgb::new(0.05, 0.95, 0.05).into();
+    let blue: Xyz = LinSrgb::new(0.05, 0.05, 0.95).into();
+
     const FRAMENUM: usize = 60;
 
     let mut frames = Vec::with_capacity(FRAMENUM );
     (0..FRAMENUM ).into_par_iter().map(|i| {
-        let mut img = ImgVec::new(vec![[0; ELEMS]; size * size], size, size);
+        let mut img = ImgVec::new(vec![Srgb::new(0, 0, 0); size * size], size, size);
         let angle = 2. * PI * (i as f64 / FRAMENUM  as f64);
         let cam = PerspectiveCamera::new(
             Isometry3::new_observer_frame(
@@ -69,24 +79,19 @@ fn main() -> Result<(), Error> {
             100.,
         );
 
-        fn splat(x: f64) -> u8 {
-            let x = x / 2. + 0.5;
-            let x = x.min(1.).max(0.);
-            (x * 255.) as u8
-        }
-
         render_spheres(scene, &cam, RasterLayer::new(img.as_mut()), |b| match b {
-            Some(i) => [splat(i.norm[0]), splat(i.norm[1]), splat(i.norm[2])],
-            None => [128; 3],
+            Some(i) => {
+                let shade = red * smash(i.norm[0]) + green * smash(i.norm[1]) + blue * smash(i.norm[2]);
+                let srgb: Srgb = shade.into();
+                srgb.into_format()
+            },
+            None => colors::GRAY,
         });
-
-        use std::slice::from_raw_parts;
-        let buf: *const [u8; ELEMS] = img.buf.as_ptr();
 
         let mut frame = Frame::from_rgb(
             img.width() as u16,
             img.height() as u16,
-            unsafe { from_raw_parts(buf as *mut u8, img.buf.len() * ELEMS) },
+            Pixel::into_raw_slice(&img.buf),
         );
         frame.delay = 100 / 30;
 

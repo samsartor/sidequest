@@ -1,7 +1,7 @@
 pub extern crate nalgebra as nalg;
 pub extern crate ncollide as ncol;
 pub extern crate imgref;
-pub extern crate rayon;
+pub extern crate palette;
 extern crate num_traits;
 extern crate serde;
 #[macro_use]
