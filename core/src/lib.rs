@@ -3,9 +3,8 @@ pub extern crate ncollide as ncol;
 pub extern crate imgref;
 pub extern crate palette;
 extern crate num_traits;
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
+pub extern crate rand;
+
 
 pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3};
 pub use imgref::ImgVec;
@@ -14,26 +13,43 @@ use ncol::shape::Ball;
 use ncol::query::{RayCast, Ray as NcolRay};
 use imgref::ImgRefMut;
 
-pub type Ray<F> = NcolRay<Point3<F>>;
+pub mod shade;
 
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
-pub struct Impact<F: Real> {
-    pub t: F,
-    pub norm: Unit<Vector3<F>>,
+#[derive(Copy, Clone, Debug)]
+pub struct Ray {
+    pub origin: Point3<f64>,
+    pub dir: Unit<Vector3<f64>>,
 }
 
-pub trait Castable<F: Real> {
-    fn cast(&self, ray: Ray<F>) -> Option<Impact<F>>;
+impl Ray {
+    pub fn new(origin: Point3<f64>, dir: Unit<Vector3<f64>>) -> Ray {
+        Ray { origin, dir }
+    }
+
+    pub fn col(self) -> NcolRay<Point3<f64>> {
+        NcolRay::new(self.origin, self.dir.unwrap())
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Impact<T> {
+    pub t: f64,
+    pub norm: Unit<Vector3<f64>>,
+    pub data: T,
+}
+
+pub trait Castable {
+    fn cast<T>(&self, ray: Ray, data: T) -> Option<Impact<T>>;
 }
 
 #[derive(Clone, Debug)]
-pub struct Sphere<F: Real> {
-    pub center: Point3<F>,
-    ball: Ball<F>,
+pub struct Sphere {
+    pub center: Point3<f64>,
+    ball: Ball<f64>,
 }
 
-impl<F: Real> Sphere<F> {
-    pub fn new(center: Point3<F>, radius: F) -> Sphere<F> {
+impl Sphere {
+    pub fn new(center: Point3<f64>, radius: f64) -> Sphere {
         Sphere {
             center,
             ball: Ball::new(radius),
@@ -41,31 +57,30 @@ impl<F: Real> Sphere<F> {
     }
 }
 
-impl<F: Real> Castable<F> for Sphere<F> {
-    fn cast(&self, ray: Ray<F>) -> Option<Impact<F>> {
+impl Castable for Sphere {
+    fn cast<T>(&self, ray: Ray, data: T) -> Option<Impact<T>> {
         use nalg::Translation;
 
         self.ball.toi_and_normal_with_ray(
             &Translation { vector: self.center.coords },
-            &ray,
+            &ray.col(),
             false,
         ).and_then(|r| {
-            if r.toi == F::zero() { None }
+            if r.toi == 0. { None }
             else { Some(Impact {
                 t: r.toi,
-                norm: Unit::new_unchecked(r.normal)
+                norm: Unit::new_unchecked(r.normal),
+                data,
             }) }
         })
     }
 }
 
 pub trait Camera<I> {
-    type F: Real;
-
-    fn look(&self, from: I) -> Option<Ray<Self::F>>;
+    fn look(&self, from: I) -> Option<Ray>;
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct PerspectiveCamera {
     pub position: Isometry3<f64>,
     pub projection: Perspective3<f64>,
@@ -78,9 +93,7 @@ impl PerspectiveCamera {
 }
 
 impl Camera<Point2<f64>> for PerspectiveCamera {
-    type F = f64;
-
-    fn look(&self, from: Point2<f64>) -> Option<Ray<f64>> {
+    fn look(&self, from: Point2<f64>) -> Option<Ray> {
         let near = Point3::new(from.coords.x, from.coords.y, 0.);
         let near = self.projection.unproject_point(&near);
         let far = Point3::new(from.coords.x, from.coords.y, -1.);
@@ -88,7 +101,7 @@ impl Camera<Point2<f64>> for PerspectiveCamera {
         let origin = self.position * near;
         let distant = self.position * far;
         let dir = Unit::new_normalize(distant - origin);
-        Some(Ray::new(origin, dir.unwrap()))
+        Some(Ray::new(origin, dir))
     }
 }
 
