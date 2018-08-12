@@ -6,7 +6,7 @@ extern crate num_traits;
 pub extern crate rand;
 
 
-pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3};
+pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3, Matrix3};
 pub use imgref::ImgVec;
 pub use nalg::geometry::{Isometry3, Perspective3};
 use ncol::shape::Ball;
@@ -36,6 +36,25 @@ pub struct Impact<T> {
     pub t: f64,
     pub norm: Unit<Vector3<f64>>,
     pub data: T,
+}
+
+impl<T> Impact<T> {
+    pub fn surface(&self) -> Matrix3<f64> {
+        let x_axis = Vector3::new(1., 0., 0.);
+        let y_axis = Vector3::new(0., 1., 0.);
+
+        // TODO: Use proper tangent and bitangent
+
+        let est = if self.norm.dot(&x_axis).abs() > 0.8 {
+            // norm is too close to parallel with x axis, use different axis
+            y_axis
+        } else { x_axis };
+
+        let tan = self.norm.cross(&est);
+        let bitan = self.norm.cross(&tan);
+
+        Matrix3::from_columns(&[tan, bitan, self.norm.unwrap()])
+    }
 }
 
 pub trait Castable {
