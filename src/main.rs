@@ -31,14 +31,14 @@ fn main() -> Result<(), Error> {
 
     println!("RENDERING & ENCODING");
 
-    const FRAMENUM: usize = 60;
+    const FRAMENUM: usize = 30;
 
     let mut frames = Vec::with_capacity(FRAMENUM );
     (0..FRAMENUM).into_par_iter().map(|index| {
         let mut rng = rand::thread_rng();
 
         let mut img = ImgVec::new(vec![Srgb::new(0, 0, 0); size * size], size, size);
-        let angle = 2. * PI * (index as f64 / FRAMENUM  as f64);
+        let angle = 2. * PI * (index as f64 / FRAMENUM  as f64 + 0.125);
         let cam = PerspectiveCamera::new(
             Isometry3::new_observer_frame(
                 &Point3::new(angle.sin() * 12., 8., angle.cos() * 12.),
@@ -54,7 +54,7 @@ fn main() -> Result<(), Error> {
             let mut raster = RasterLayer::new(img.as_mut());
             for (p, v) in raster.pixels_mut() {
                 let mut val = LinSrgb::new(0., 0., 0.);
-                let count = 128;
+                let count = 8;
                 for _ in 0..count {
                     let ray = match cam.look(p) {
                         Some(r) => r,
@@ -84,7 +84,7 @@ fn main() -> Result<(), Error> {
             img.height() as u16,
             Pixel::into_raw_slice(&img.buf),
         );
-        frame.delay = 100 / 30;
+        frame.delay = 2 * 100 / (FRAMENUM as u16);
 
         println!("\tRENDERED FRAME #{}", index);
 

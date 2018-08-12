@@ -69,27 +69,36 @@ impl World {
                 let p_x;
                 let f_prob;
 
-                let refl = i.data.reflectivity;
-                let not_refl = 1. - refl;
-                if refl > rng.gen_range(0., 1.) {
-                    x = reflect(ray.dir, i.halfway());
-                    p_x = refl;
-                    f_prob = refl;
+                const EMISSION_P: f32 = 0.1;
+                const NOT_EMISSION_P: f32 = 1. - EMISSION_P;
+
+                let (prior_f, prior_p) = if rng.gen_range(0., 1.) < EMISSION_P {
+                    p_x = EMISSION_P;
+                    f_prob = 1.;
+                    (i.data.emission, 1.)
                 } else {
-                    let (cos_theta, cwh) = cosine_weighted_hemi(rng);
-                    x = Unit::new_unchecked(i.surface() * cwh.unwrap());
-                    let cos_theta_over_pi = cos_theta as f32 / PI;
-                    p_x = not_refl * cos_theta_over_pi;
-                    f_prob = not_refl * cos_theta_over_pi;
-                }
+                    let refl = i.data.reflectivity;
+                    let not_refl = 1. - refl;
+                    if refl > rng.gen_range(0., 1.) {
+                        x = reflect(ray.dir, i.halfway());
+                        p_x = NOT_EMISSION_P * refl;
+                        f_prob = refl;
+                    } else {
+                        let (cos_theta, cwh) = cosine_weighted_hemi(rng);
+                        x = Unit::new_unchecked(i.surface() * cwh.unwrap());
+                        let cos_theta_over_pi = cos_theta as f32 / PI;
+                        p_x = NOT_EMISSION_P * not_refl * cos_theta_over_pi;
+                        f_prob = not_refl * cos_theta_over_pi;
+                    }
 
-                let (prior_f, prior_p) = self.sample(
-                    Ray::new(ray.origin + i.t * ray.dir.unwrap(), x),
-                    limit - 1,
-                    rng,
-                );
+                    self.sample(
+                        Ray::new(ray.origin + i.t * ray.dir.unwrap(), x),
+                        limit - 1,
+                        rng,
+                    )
+                };
 
-                let f = (prior_f + i.data.emission) * f_prob;
+                let f = prior_f * f_prob;
                 let p = p_x * prior_p;
                 (f, p)
             }
