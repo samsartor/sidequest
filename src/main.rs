@@ -17,19 +17,19 @@ use self::nalg::Vector2;
 fn main() -> Result<(), Error> {
     const FRAME_SIZE: usize = 512;
     const FRAME_NUM: usize = 60;
-    const SAMPLE_NUM: usize = 256;
+    const SAMPLE_NUM: usize = 2048;
     const BOUNCE_LIMIT: usize = 6;
 
     let world = World {
         objects: vec![
-            Object::new(0., -2., 0., 3., LinSrgb::new(0., 0., 0.), 0.75),
-            Object::new(0., 3., 0., 1.5, LinSrgb::new(0.05, 0.3, 0.05), 0.75),
-            Object::new(4., 0., 0., 1., LinSrgb::new(0.3, 0.05, 0.05), 0.9),
-            Object::new(-4., 0., 0., 1., LinSrgb::new(0.05, 0.05, 0.3), 0.9),
-            Object::new(0., 0., 4., 1., LinSrgb::new(0., 0., 0.), 0.1),
-            Object::new(0., 0., -4., 1., LinSrgb::new(0., 0., 0.), 0.1),
+            Object::new(0., -2., 0., 3., LinSrgb::new(0., 0., 0.), 0.5),
+            Object::new(0., 3., 0., 1.5, LinSrgb::new(0.8, 1., 0.8) * 0.9f32, 0.75),
+            Object::new(4., 0., 0., 1., LinSrgb::new(1., 0.2, 0.2) * 0.75f32, 0.95),
+            Object::new(-4., 0., 0., 1., LinSrgb::new(0.2, 0.2, 1.) * 0.75f32, 0.95),
+            Object::new(0., 0., 4., 1., LinSrgb::new(0., 0., 0.), 0.05),
+            Object::new(0., 0., -4., 1., LinSrgb::new(0., 0., 0.), 0.05),
         ],
-        ambient: colors::DARKSLATEGREY.into_format::<f32>().into_linear(),
+        ambient: colors::DARKSLATEGREY.into_format::<f32>().into_linear() * 0.4,
         margin: 0.00001,
     };
 
