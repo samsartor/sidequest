@@ -14,6 +14,7 @@ use ncol::query::{RayCast, Ray as NcolRay};
 use imgref::ImgRefMut;
 
 pub mod shade;
+pub mod stats;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ray {

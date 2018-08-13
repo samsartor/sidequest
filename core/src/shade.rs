@@ -1,6 +1,7 @@
 use ::{Ray, Sphere, Castable, Vector3, Unit, Impact};
 use rand::Rng;
 use palette::{LinSrgb};
+use stats::{ForPath, BackPath};
 
 pub struct Object {
     pub geo: Sphere,
@@ -50,7 +51,9 @@ pub fn cosine_weighted_hemi<R: Rng>(rng: &mut R) -> (f64, Unit<Vector3<f64>>) {
 }
 
 impl World {
-    pub fn sample<R: Rng>(&self, ray: Ray, limit: usize, rng: &mut R) -> (LinSrgb, f32) {
+    pub fn sample<R: Rng, P: BackPath>(&self, ray: Ray, mut bpath: P, limit: usize, rng: &mut R) -> P::Forward
+        where P::Forward: ForPath<Color=LinSrgb, Filter=LinSrgb>
+    {
         use std::f32::consts::PI;
 
         let hit = self.objects.iter()
@@ -61,46 +64,51 @@ impl World {
                 Some(ai) if ai.t > bi.t => Some(bi),
                 _ => a,
             });
+
         match (hit, limit) {
-            (None, _) => (self.ambient, 1.),
-            (Some(i), 0) => (i.data.emission, 1.),
+            (None, _) => bpath.source(self.ambient),
+            (Some(i), 0) => bpath.source(i.data.emission),
             (Some(i), _) => {
                 let x;
-                let p_x;
-                let f_prob;
+                let filter;
 
                 const EMISSION_P: f32 = 0.1;
-                const NOT_EMISSION_P: f32 = 1. - EMISSION_P;
 
-                let (prior_f, prior_p) = if rng.gen_range(0., 1.) < EMISSION_P {
-                    p_x = EMISSION_P;
-                    f_prob = 1.;
-                    (i.data.emission, 1.)
+                let mut fpath = if rng.gen_range(0., 1.) < EMISSION_P {
+                    bpath.decide(EMISSION_P);
+
+                    filter = 1.;
+                    bpath.source(i.data.emission)
                 } else {
+                    bpath.decide_not(EMISSION_P);
+
                     let refl = i.data.reflectivity;
                     let not_refl = 1. - refl;
                     if refl > rng.gen_range(0., 1.) {
+                        bpath.decide(refl);
+
                         x = reflect(ray.dir, i.halfway());
-                        p_x = NOT_EMISSION_P * refl;
-                        f_prob = refl;
+                        filter = refl;
                     } else {
+                        bpath.decide_not(refl);
+
                         let (cos_theta, cwh) = cosine_weighted_hemi(rng);
-                        x = Unit::new_unchecked(i.surface() * cwh.unwrap());
                         let cos_theta_over_pi = cos_theta as f32 / PI;
-                        p_x = NOT_EMISSION_P * not_refl * cos_theta_over_pi;
-                        f_prob = not_refl * cos_theta_over_pi;
+                        bpath.decide(cos_theta_over_pi);
+
+                        x = Unit::new_unchecked(i.surface() * cwh.unwrap());
+                        filter = not_refl * cos_theta_over_pi;
                     }
 
                     self.sample(
                         Ray::new(ray.origin + i.t * ray.dir.unwrap(), x),
+                        bpath,
                         limit - 1,
                         rng,
                     )
                 };
-
-                let f = prior_f * f_prob;
-                let p = p_x * prior_p;
-                (f, p)
+                fpath.filter(LinSrgb::new(filter, filter, filter));
+                fpath
             }
         }
     }

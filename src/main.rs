@@ -8,6 +8,7 @@ use failure::Error;
 use gif::{SetParameter, Encoder, Frame, Repeat};
 use sidequest::core::*;
 use self::shade::*;
+use self::stats::{MulBackPath, ForPath};
 use self::palette::{Pixel, LinSrgb, Srgb, named as colors};
 use rayon::prelude::*;
 use std::f64::consts::{FRAC_PI_4, PI};
@@ -60,8 +61,8 @@ fn main() -> Result<(), Error> {
                         Some(r) => r,
                         None => continue,
                     };
-                    let (mut f, p) = world.sample(ray, 6, &mut rng);
-                    val = val + f / p as f32;
+                    let path = world.sample(ray, MulBackPath::new(), 6, &mut rng);
+                    val = val + path.lum();
                 }
                 *v = Srgb::from_linear(val / count as f32).into_format();
             }
