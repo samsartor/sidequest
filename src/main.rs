@@ -1,24 +1,24 @@
 extern crate sidequest;
-extern crate gif;
 extern crate failure;
 extern crate rayon;
 extern crate image;
 
 use failure::Error;
-use gif::{SetParameter, Encoder, Frame, Repeat};
 use sidequest::core::*;
 use self::shade::*;
 use self::stats::{MulBackPath, ForPath};
 use self::palette::{Pixel, LinSrgb, Srgb, named as colors};
 use rayon::prelude::*;
 use std::f64::consts::{FRAC_PI_4, PI};
-use std::fs::File;
 use self::rand::Rng;
 use self::nalg::Vector2;
 
 
 fn main() -> Result<(), Error> {
-    let size = 256;
+    const FRAME_SIZE: usize = 512;
+    const FRAME_NUM: usize = 60;
+    const SAMPLE_NUM: usize = 256;
+    const BOUNCE_LIMIT: usize = 6;
 
     let world = World {
         objects: vec![
@@ -35,14 +35,12 @@ fn main() -> Result<(), Error> {
 
     println!("RENDERING & ENCODING");
 
-    const FRAMENUM: usize = 30;
-
-    let mut frames = Vec::with_capacity(FRAMENUM );
-    (0..FRAMENUM).into_par_iter().map(|index| {
+    let mut frames = Vec::with_capacity(FRAME_NUM );
+    (0..FRAME_NUM).into_par_iter().map(|index| {
         let mut rng = rand::thread_rng();
 
-        let mut img = ImgVec::new(vec![Srgb::new(0, 0, 0); size * size], size, size);
-        let angle = 2. * PI * (index as f64 / FRAMENUM  as f64 + 0.125);
+        let mut img = ImgVec::new(vec![Srgb::new(0, 0, 0); FRAME_SIZE * FRAME_SIZE], FRAME_SIZE, FRAME_SIZE);
+        let angle = 2. * PI * (index as f64 / FRAME_NUM  as f64 + 0.125);
         let cam = PerspectiveCamera::new(
             Isometry3::new_observer_frame(
                 &Point3::new(angle.sin() * 12., 8., angle.cos() * 12.),
@@ -60,8 +58,7 @@ fn main() -> Result<(), Error> {
             let px = raster.pixel_size();
             for (p, v) in raster.pixels_mut() {
                 let mut val = LinSrgb::new(0., 0., 0.);
-                let count = 16;
-                for _ in 0..count {
+                for _ in 0..SAMPLE_NUM {
                     let offset = Vector2::new(rng.gen_range(0., px), rng.gen_range(0., px));
 
                     let defoc_r = 0.2 * rng.gen_range(0., 1.).sqrt();
@@ -73,44 +70,25 @@ fn main() -> Result<(), Error> {
                         None => continue,
                     };
 
-                    let path = world.sample(ray, MulBackPath::new(), 6, &mut rng);
+                    let path = world.sample(ray, MulBackPath::new(), BOUNCE_LIMIT, &mut rng);
                     val = val + path.lum();
                 }
-                *v = Srgb::from_linear(val / count as f32).into_format();
+                *v = Srgb::from_linear(val / SAMPLE_NUM as f32).into_format();
             }
         }
 
-        if index == 0 {
-            if let Err(e) = image::save_buffer(
-                "demo.png",
-                Pixel::into_raw_slice(&img.buf),
-                img.width() as u32,
-                img.height() as u32,
-                image::ColorType::RGB(8))
-            {
-                eprintln!("Could not save PNG: {:?}", e);
-            }
-        }
-
-        let mut frame = Frame::from_rgb(
-            img.width() as u16,
-            img.height() as u16,
+        if let Err(e) = image::save_buffer(
+            format!("demo/frame{:03}.png", index),
             Pixel::into_raw_slice(&img.buf),
-        );
-        frame.delay = 2 * 100 / (FRAMENUM as u16);
-
-        println!("\tRENDERED FRAME #{}", index);
-
-        frame
+            img.width() as u32,
+            img.height() as u32,
+            image::ColorType::RGB(8))
+        {
+            eprintln!("\tERROR SAVING FRAME #{}: {:?}", index, e);
+        } else {
+            println!("\tRENDERED FRAME #{}", index);
+        }
     }).collect_into_vec(&mut frames);
-
-    println!("WRITING");
-
-    let mut gif = Encoder::new(File::create("demo.gif")?, size as u16, size as u16, &[])?;
-    gif.set(Repeat::Infinite)?;
-    for frame in frames {
-        gif.write_frame(&frame)?;
-    }
 
     Ok(())
 }
