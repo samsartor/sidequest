@@ -37,7 +37,7 @@ pub fn reflect(input: Unit<Vector3<f64>>, half: Unit<Vector3<f64>>) -> Unit<Vect
     Unit::new_unchecked(input.unwrap() - 2. * (input.dot(half.as_ref())) * half.as_ref())
 }
 
-pub fn cosine_weighted_hemi<R: Rng>(rng: &mut R) -> (f64, Unit<Vector3<f64>>) {
+pub fn cosine_weighted_hemi<R: Rng>(rng: &mut R) -> Unit<Vector3<f64>> {
     use std::f64::consts::PI;
 
     let u: f64 = rng.gen_range(0., 1.);
@@ -47,14 +47,13 @@ pub fn cosine_weighted_hemi<R: Rng>(rng: &mut R) -> (f64, Unit<Vector3<f64>>) {
     let x = r * phi.cos();
     let y = r * phi.sin();
 
-    (r, Unit::new_unchecked(Vector3::new(x, y, (1. - u).sqrt())))
+    Unit::new_unchecked(Vector3::new(x, y, (1. - u).sqrt()))
 }
 
 impl World {
     pub fn sample<R: Rng, P: BackPath>(&self, ray: Ray, mut bpath: P, limit: usize, rng: &mut R) -> P::Forward
         where P::Forward: ForPath<Color=LinSrgb, Filter=LinSrgb>
     {
-        use std::f32::consts::PI;
 
         let hit = self.objects.iter()
             .map(|o| o.geo.cast(ray, o))
@@ -92,12 +91,11 @@ impl World {
                     } else {
                         bpath.decide_not(refl);
 
-                        let (cos_theta, cwh) = cosine_weighted_hemi(rng);
-                        let cos_theta_over_pi = cos_theta as f32 / PI;
-                        bpath.decide(cos_theta_over_pi);
+                        let cwh = cosine_weighted_hemi(rng);
+                        /* bpath.decide(cos_theta_over_pi); CANCELS */
 
                         x = Unit::new_unchecked(i.surface() * cwh.unwrap());
-                        filter = not_refl * cos_theta_over_pi;
+                        filter = not_refl /* * cos_theta_over_pi */;
                     }
 
                     self.sample(

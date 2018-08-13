@@ -13,14 +13,17 @@ use self::palette::{Pixel, LinSrgb, Srgb, named as colors};
 use rayon::prelude::*;
 use std::f64::consts::{FRAC_PI_4, PI};
 use std::fs::File;
+use self::rand::Rng;
+use self::nalg::Vector2;
+
 
 fn main() -> Result<(), Error> {
-    let size = 1024;
+    let size = 256;
 
     let world = World {
         objects: vec![
-            Object::new(0., -2., 0., 3., LinSrgb::new(0.05, 0.3, 0.05), 0.75),
-            Object::new(0., 3., 0., 1.5, LinSrgb::new(0., 0., 0.), 0.75),
+            Object::new(0., -2., 0., 3., LinSrgb::new(0., 0., 0.), 0.75),
+            Object::new(0., 3., 0., 1.5, LinSrgb::new(0.05, 0.3, 0.05), 0.75),
             Object::new(4., 0., 0., 1., LinSrgb::new(0.3, 0.05, 0.05), 0.9),
             Object::new(-4., 0., 0., 1., LinSrgb::new(0.05, 0.05, 0.3), 0.9),
             Object::new(0., 0., 4., 1., LinSrgb::new(0., 0., 0.), 0.1),
@@ -50,17 +53,26 @@ fn main() -> Result<(), Error> {
             0.1,
             100.,
         );
+        let cam = DefocusCamera::new(cam, 14.);
 
         {
             let mut raster = RasterLayer::new(img.as_mut());
+            let px = raster.pixel_size();
             for (p, v) in raster.pixels_mut() {
                 let mut val = LinSrgb::new(0., 0., 0.);
-                let count = 8;
+                let count = 16;
                 for _ in 0..count {
-                    let ray = match cam.look(p) {
+                    let offset = Vector2::new(rng.gen_range(0., px), rng.gen_range(0., px));
+
+                    let defoc_r = 0.2 * rng.gen_range(0., 1.).sqrt();
+                    let defoc_theta = rng.gen_range(0., 2. * PI);
+                    let defoc = Vector2::new(defoc_r * defoc_theta.sin(), defoc_r * defoc_theta.cos());
+
+                    let ray = match cam.look((p + offset, defoc)) {
                         Some(r) => r,
                         None => continue,
                     };
+
                     let path = world.sample(ray, MulBackPath::new(), 6, &mut rng);
                     val = val + path.lum();
                 }

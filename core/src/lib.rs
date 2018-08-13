@@ -2,11 +2,10 @@ pub extern crate nalgebra as nalg;
 pub extern crate ncollide as ncol;
 pub extern crate imgref;
 pub extern crate palette;
-extern crate num_traits;
 pub extern crate rand;
+extern crate num_traits;
 
-
-pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3, Matrix3};
+pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3, Matrix3, Vector2};
 pub use imgref::ImgVec;
 pub use nalg::geometry::{Isometry3, Perspective3};
 use ncol::shape::Ball;
@@ -122,6 +121,30 @@ impl Camera<Point2<f64>> for PerspectiveCamera {
         let distant = self.position * far;
         let dir = Unit::new_normalize(distant - origin);
         Some(Ray::new(origin, dir))
+    }
+}
+
+pub struct DefocusCamera {
+    pub base: PerspectiveCamera,
+    pub focal_distance: f64,
+}
+
+impl DefocusCamera {
+    pub fn new(base: PerspectiveCamera, focal_distance: f64) -> DefocusCamera {
+        DefocusCamera { base, focal_distance }
+    }
+}
+
+impl Camera<(Point2<f64>, Vector2<f64>)> for DefocusCamera {
+    fn look(&self, (from, offset): (Point2<f64>, Vector2<f64>)) -> Option<Ray> {
+        let base = match self.base.look(from) {
+            Some(b) => b,
+            None => return None,
+        };
+        let offset = self.base.position * Vector3::new(offset[0], offset[1], 0.);
+        let origin = base.origin + offset;
+        let dir = base.dir.unwrap() - offset / self.focal_distance;
+        Some(Ray::new(origin, Unit::new_normalize(dir)))
     }
 }
 
