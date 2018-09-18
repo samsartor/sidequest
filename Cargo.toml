@@ -6,9 +6,10 @@ authors = ["Sam Sartor <me@samsartor.com>"]
 [dependencies]
 sidequest_core = { path="core" }
 failure = "0.1"
-rayon = "^1.0.2"
+rayon = "^1.0"
 image = "0.19"
-clap = "2.32.0"
+clap = "^2.32"
+indicatif = "*"
 
 [workspace]
 members = ["core"]
