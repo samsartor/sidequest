@@ -1,11 +1,20 @@
-extern crate sidequest;
 extern crate failure;
 extern crate rayon;
 extern crate image;
 extern crate indicatif;
+extern crate nalgebra as nalg;
+extern crate ncollide as ncol;
+extern crate imgref;
+extern crate palette;
+extern crate rand;
+extern crate num_traits;
+
+pub mod shade;
+pub mod geo;
+pub mod stats;
 
 use failure::Error;
-use sidequest::core::*;
+use self::geo::*;
 use self::shade::*;
 use self::stats::{MulBackPath, ForPath};
 use self::palette::{Pixel, LinSrgb, Srgb, named as colors};

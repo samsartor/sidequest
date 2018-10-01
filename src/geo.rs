@@ -1,19 +1,9 @@
-pub extern crate nalgebra as nalg;
-pub extern crate ncollide as ncol;
-pub extern crate imgref;
-pub extern crate palette;
-pub extern crate rand;
-extern crate num_traits;
-
 pub use nalg::{Real, zero, one, Point2, Point3, Unit, Vector3, Matrix3, Vector2};
 pub use imgref::ImgVec;
 pub use nalg::geometry::{Isometry3, Perspective3};
 use ncol::shape::Ball;
 use ncol::query::{RayCast, Ray as NcolRay};
 use imgref::ImgRefMut;
-
-pub mod shade;
-pub mod stats;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ray {
