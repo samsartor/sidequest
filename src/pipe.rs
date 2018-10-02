@@ -107,8 +107,8 @@ impl RenderParams {
             fn next(&mut self) -> Option<Tile> {
                 if self.top >= self.params.height { return None }
 
-                let w = (self.params.width - self.left).max(self.params.tile_size);
-                let h = (self.params.height - self.top).max(self.params.tile_size);
+                let w = (self.params.width - self.left).min(self.params.tile_size);
+                let h = (self.params.height - self.top).min(self.params.tile_size);
                 let tile = Tile {
                     buf: ImgVec::new(vec![Srgb::new(0, 0, 0); w * h], w, h),
                     origin: (self.left, self.top),
