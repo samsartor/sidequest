@@ -15,7 +15,7 @@ pub struct FrameData {
 }
 
 pub struct Tile {
-    pub frame_num: usize,
+    pub frame_num: u32,
     pub buf: ImgVec<Srgba<u8>>,
     pub origin: (usize, usize),
     pub frame: Arc<FrameData>,
@@ -95,13 +95,13 @@ pub struct RenderParams {
 }
 
 impl RenderParams {
-    fn tiles(self, frame_num: usize, frame: Arc<FrameData>) -> impl Iterator<Item=Tile> {
+    fn tiles(self, frame_num: u32, frame: Arc<FrameData>) -> impl Iterator<Item=Tile> {
         struct Tiles {
             left: usize,
             top: usize,
             params: RenderParams,
             frame: Arc<FrameData>,
-            frame_num: usize,
+            frame_num: u32,
         }
 
         impl Iterator for Tiles {
@@ -140,7 +140,7 @@ impl RenderParams {
 }
 
 pub fn render_pipeline(
-    mut frames: impl FnMut(usize) -> Option<FrameData>,
+    mut frames: impl FnMut(u32) -> Option<FrameData>,
     mut rendered: impl FnMut(Tile),
     mut poll: impl FnMut() -> bool,
     params: RenderParams
