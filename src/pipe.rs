@@ -180,9 +180,10 @@ pub fn render_pipeline(
     }
 
     drop(is);
-    drop(cr);
     pool.ctx().running.store(false, SeqCst);
-    if let Err(err) = pool.join() {
-        eprintln!("Render pool error: {:?}", err)
+    while pool.thread_count() > 0 || !cr.is_empty() {
+        while let Some(tile) = cr.try_recv() {
+            rendered(tile);
+        }
     }
 }
