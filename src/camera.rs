@@ -3,7 +3,6 @@ pub use imgref::ImgVec;
 pub use nalg::geometry::{Isometry3, Perspective3};
 use ncol::shape::Ball;
 use ncol::query::{RayCast, Ray as NcolRay};
-use imgref::ImgRefMut;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Ray {
@@ -137,50 +136,3 @@ impl Camera<(Point2<f64>, Vector2<f64>)> for DefocusCamera {
         Some(Ray::new(origin, Unit::new_normalize(dir)))
     }
 }
-
-pub struct RasterLayer<'a, P: 'a> {
-    pub target: ImgRefMut<'a, P>,
-}
-
-impl<'a, P> RasterLayer<'a, P> {
-    pub fn new(target: ImgRefMut<'a, P>) -> RasterLayer<'a, P> {
-        RasterLayer { target }
-    }
-
-    /// Maximum of width and height.
-    pub fn dim(&self) -> usize {
-        self.target.width().max(self.target.height())
-    }
-
-    /// The width/height of a single pixel in view space.
-    pub fn pixel_size(&self) -> f64 {
-        2. / self.dim() as f64
-    }
-
-    /// Half the width/height of a single pixel in view space.
-    pub fn pixel_radius(&self) -> f64 {
-        self.pixel_size() / 2.
-    }
-
-    /// Mutate over pixels in view space.
-    pub fn pixels_mut<'s>(&'s mut self)
-        -> impl Iterator<Item=(Point2<f64>, &'s mut P)> + 's
-    {
-        let c = self.centers();
-        self.target.rows_mut()
-            .enumerate()
-            .flat_map(move |(y, r)| r.iter_mut()
-            .enumerate()
-            .map(move |(x, p)| (c(x, y), p)))
-    }
-
-    /// Returns a function that can compute the center of any pixel in view space.
-    pub fn centers(&self) -> impl Fn(usize, usize) -> Point2<f64> + Copy {
-        let s = self.pixel_size();
-        move |x, y| Point2::new(
-            (x as f64 + 0.5) * s - 1.,
-            (y as f64 + 0.5) * s - 1.,
-        )
-    }
-}
-
