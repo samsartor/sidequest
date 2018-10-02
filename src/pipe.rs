@@ -4,8 +4,8 @@ use camera::DefocusCamera;
 use sample::{World, SampleParams};
 use dynpool::{Worker, Context, Pool, Scale, Decision};
 use channel::{Receiver, Sender};
-use std::sync::{Arc, atomic::{AtomicBool, Ordering::Relaxed}};
-use palette::{Srgb};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
+use palette::{Srgba, Alpha};
 use rand::{self, ThreadRng};
 
 pub struct FrameData {
@@ -16,7 +16,7 @@ pub struct FrameData {
 
 pub struct Tile {
     pub frame_num: usize,
-    pub buf: ImgVec<Srgb<u8>>,
+    pub buf: ImgVec<Srgba<u8>>,
     pub origin: (usize, usize),
     pub frame: Arc<FrameData>,
 }
@@ -39,7 +39,7 @@ impl Context for RenderCtx {
     }
 
     fn scale(&self) -> Scale {
-        match self.running.load(Relaxed) {
+        match self.running.load(SeqCst) {
             true => Scale::active(self.threads),
             false => Scale::shutdown(),
         }
@@ -65,14 +65,17 @@ impl Worker<RenderCtx> for Renderer {
             for (x, px) in row.iter_mut().enumerate() {
                 let x = (x + tile.origin.0) as f64 * pixel_width;
 
-                *px = Srgb::from_linear(sample_pixel(
-                    &tile.frame.cam,
-                    &tile.frame.world,
-                    Point2::new(x, y),
-                    pixel_width,
-                    &mut self.rng,
-                    &tile.frame.params,
-                )).into_format()
+                *px = Srgba::from_linear(Alpha {
+                    color: sample_pixel(
+                        &tile.frame.cam,
+                        &tile.frame.world,
+                        Point2::new(x * 2. - 1., y * 2. - 1.),
+                        pixel_width,
+                        &mut self.rng,
+                        &tile.frame.params,
+                    ),
+                    alpha: 1.,
+                }).into_format()
             }
         }
 
@@ -110,7 +113,7 @@ impl RenderParams {
                 let w = (self.params.width - self.left).min(self.params.tile_size);
                 let h = (self.params.height - self.top).min(self.params.tile_size);
                 let tile = Tile {
-                    buf: ImgVec::new(vec![Srgb::new(0, 0, 0); w * h], w, h),
+                    buf: ImgVec::new(vec![Srgba::new(0, 0, 0, 255); w * h], w, h),
                     origin: (self.left, self.top),
                     frame: self.frame.clone(),
                     frame_num: self.frame_num,
@@ -139,12 +142,14 @@ impl RenderParams {
 pub fn render_pipeline(
     mut frames: impl FnMut(usize) -> Option<FrameData>,
     mut rendered: impl FnMut(Tile),
+    mut poll: impl FnMut() -> bool,
     params: RenderParams
 ) {
-    use channel::{bounded, Select};
+    use channel::{bounded, unbounded, Select};
+    use std::mem::drop;
 
     let (is, ir) = bounded(params.tile_queue);
-    let (cs, cr) = bounded(params.tile_queue);
+    let (cs, cr) = unbounded();
     let pool = Pool::start_bg(RenderCtx {
         input: ir,
         output: cs,
@@ -153,7 +158,7 @@ pub fn render_pipeline(
         running: AtomicBool::new(true),
     });
 
-    for frame_num in 0.. {
+    'frames: for frame_num in 0.. {
         let frame = match frames(frame_num) {
             Some(f) => Arc::new(f),
             None => break,
@@ -163,6 +168,7 @@ pub fn render_pipeline(
         let mut tile = tiles.next();
         loop {
             if tile.is_none() { break }
+            if !poll() { break 'frames }
 
             Select::new()
                 .recv(&cr, |tile| if let Some(tile) = tile { rendered(tile); })
@@ -173,5 +179,10 @@ pub fn render_pipeline(
         }
     }
 
-    pool.ctx().running.store(false, Relaxed);
+    drop(is);
+    drop(cr);
+    pool.ctx().running.store(false, SeqCst);
+    if let Err(err) = pool.join() {
+        eprintln!("Render pool error: {:?}", err)
+    }
 }

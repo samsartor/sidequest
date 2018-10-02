@@ -19,9 +19,9 @@ pub mod pipe;
 
 use failure::Error;
 
-const FRAME_SIZE: usize = 512;
+const FRAME_SIZE: usize = 768;
 const FRAME_NUM: usize = 1;
-const SAMPLE_NUM: usize = 400;
+const SAMPLE_NUM: usize = 256;
 const BOUNCE_LIMIT: usize = 4;
 const TILE_SIZE: usize = 32;
 const THREADS: usize = 8;
@@ -35,6 +35,8 @@ fn main() -> Result<(), Error> {
     use palette::{Pixel, LinSrgb, named as colors};
     use indicatif::{ProgressBar, ProgressStyle};
     use sdl2::rect::Rect;
+    use sdl2::event::Event;
+    use sdl2::keyboard::Keycode;
 
     // create world object
     let world = World {
@@ -52,15 +54,18 @@ fn main() -> Result<(), Error> {
 
     // create preview window
     let sdl = sdl2::init().map_err(|err| format_err!("Could not initialize SDL: {}", err))?;
-    let video = sdl.video().map_err(|err| format_err!("Could use SDL video: {}", err))?;
+    let mut events = sdl.event_pump().map_err(|err| format_err!("Could get SDL events: {}", err))?;
+    let video = sdl.video().map_err(|err| format_err!("Could get SDL video: {}", err))?;
     let window = video.window("Sidequest Render Preview", FRAME_SIZE as u32, FRAME_SIZE as u32).build()?;
-    println!("{:?}", window.window_pixel_format());
     let mut canvas = window.into_canvas().build()?;
     canvas.clear();
     canvas.present();
     let texture_create = canvas.texture_creator();
     let mut tile_texture = texture_create.create_texture_static(
-        Some(sdl2::pixels::PixelFormatEnum::RGB888),
+        // we could store output as simple RGB, but OpenGL endianess stupidity
+        // requires we use an alpha component, and pass it the backwards/wrong
+        // texture format. Don't ask me why.
+        Some(sdl2::pixels::PixelFormatEnum::ABGR8888),
         TILE_SIZE as u32,
         TILE_SIZE as u32,
     )?;
@@ -76,8 +81,10 @@ fn main() -> Result<(), Error> {
     pipe::render_pipeline(
         // create frames to render
         move |index| {
+            // check end of animation or close
             if index >= FRAME_NUM { return None }
 
+            // create camera
             let angle = 2. * PI * (index as f64 / FRAME_NUM  as f64 + 0.125);
             let cam = PerspectiveCamera::new(
                 Isometry3::new_observer_frame(
@@ -91,6 +98,7 @@ fn main() -> Result<(), Error> {
             );
             let cam = DefocusCamera::new(cam, 14.);
 
+            // final world and camera data
             Some(pipe::FrameData {
                 world: world.clone(),
                 cam,
@@ -103,31 +111,47 @@ fn main() -> Result<(), Error> {
         // use rendered tiles
         |tile| {
             // TODO: save output
+
+            // update progress bar
             tiles.inc(1);
 
+            // calculate buffer information
             let width = tile.buf.width() as u32;
             let height = tile.buf.height() as u32;
             let texrect = Rect::new(0, 0, width, height);
             let canrect = Rect::new(tile.origin.0 as i32, tile.origin.1 as i32, width, height);
             let bytes = Pixel::into_raw_slice(&tile.buf.buf);
 
-            println!("in={:?} out={:?} bytes={:?} min={:?} max={:?}", texrect, canrect, bytes.len(), bytes.iter().min(), bytes.iter().max());
-
-            if let Err(err) = tile_texture.update(Some(texrect), bytes, (width * 3) as usize) {
+            // update texture
+            if let Err(err) = tile_texture.update(Some(texrect), bytes, (width * 4) as usize) {
                 eprintln!("Can't preview tile: {}", err);
                 return
             }
 
+            // copy texture to screen
             if let Err(err) = canvas.copy(
                 &tile_texture,
                 Some(texrect),
-                Some(canrect)
+                Some(canrect),
             ) {
                 eprintln!("Can't preview tile: {}", err);
                 return
             }
 
+            // display to user
             canvas.present();
+        },
+        // poll window events
+        || {
+            // check for close
+            for event in events.poll_iter() {
+            match event {
+                    Event::Quit { .. } |
+                    Event::KeyDown { keycode: Some(Keycode::Escape), .. } => return false,
+                    _ => (),
+                }
+            }
+            true
         },
         // render options
         pipe::RenderParams {
