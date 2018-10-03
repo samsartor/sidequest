@@ -1,4 +1,4 @@
-use imgref::ImgVec;
+use imgref::{ImgVec};
 use nalg::Point2;
 use camera::DefocusCamera;
 use sample::{World, SampleParams};
@@ -7,6 +7,7 @@ use channel::{Receiver, Sender};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
 use palette::{Srgba, Alpha};
 use rand::{self, ThreadRng};
+use failure::Error;
 
 pub struct FrameData {
     pub world: World,
@@ -16,8 +17,9 @@ pub struct FrameData {
 
 pub struct Tile {
     pub frame_num: u32,
+    pub top: usize,
+    pub left: usize,
     pub buf: ImgVec<Srgba<u8>>,
-    pub origin: (usize, usize),
     pub frame: Arc<FrameData>,
 }
 
@@ -61,9 +63,9 @@ impl Worker<RenderCtx> for Renderer {
 
         let pixel_width = 1. / ctx.size.1.max(ctx.size.0) as f64;
         for (y, row) in tile.buf.rows_mut().enumerate() {
-            let y = (y + tile.origin.1) as f64 * pixel_width;
+            let y = (y + tile.top) as f64 * pixel_width;
             for (x, px) in row.iter_mut().enumerate() {
-                let x = (x + tile.origin.0) as f64 * pixel_width;
+                let x = (x + tile.left) as f64 * pixel_width;
 
                 *px = Srgba::from_linear(Alpha {
                     color: sample_pixel(
@@ -95,6 +97,47 @@ pub struct RenderParams {
 }
 
 impl RenderParams {
+    pub fn tiles_per_frame(&self) -> usize {
+        let tile_num_x = (self.width + self.tile_size - 1) / self.tile_size;
+        let tile_num_y = (self.height + self.tile_size - 1) / self.tile_size;
+
+        tile_num_x * tile_num_y
+    }
+
+    pub fn uninitialized_frame(&self) -> FullFrame {
+        use std::mem::uninitialized;
+
+        FullFrame {
+            buf: unsafe { ImgVec::new(vec![uninitialized(); self.width * self.height], self.width, self.height) },
+            todo_tiles: self.tiles_per_frame(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct FullFrame {
+    pub buf: ImgVec<Srgba<u8>>,
+    todo_tiles: usize,
+}
+
+impl FullFrame {
+    pub fn tile_ready(&mut self, tile: &Tile) {
+        self.todo_tiles -= 1;
+        for (to, from) in self.buf.sub_image_mut(
+            tile.left,
+            tile.top,
+            tile.buf.width(),
+            tile.buf.height()
+        ).rows_mut()
+        .zip(tile.buf.rows()) {
+            to.copy_from_slice(from);
+        }
+    }
+
+    pub fn is_done(&self) -> bool { self.todo_tiles == 0 }
+}
+
+impl RenderParams {
     fn tiles(self, frame_num: u32, frame: Arc<FrameData>) -> impl Iterator<Item=Tile> {
         struct Tiles {
             left: usize,
@@ -114,7 +157,8 @@ impl RenderParams {
                 let h = (self.params.height - self.top).min(self.params.tile_size);
                 let tile = Tile {
                     buf: ImgVec::new(vec![Srgba::new(0, 0, 0, 255); w * h], w, h),
-                    origin: (self.left, self.top),
+                    top: self.top,
+                    left: self.left,
                     frame: self.frame.clone(),
                     frame_num: self.frame_num,
                 };
@@ -139,17 +183,27 @@ impl RenderParams {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TickResult {
+    Run,
+    Exit,
+}
+
 pub fn render_pipeline(
-    mut frames: impl FnMut(u32) -> Option<FrameData>,
-    mut rendered: impl FnMut(Tile),
-    mut poll: impl FnMut() -> bool,
+    mut frames: impl FnMut(u32) -> Result<Option<FrameData>, Error>,
+    mut rendered: impl FnMut(Tile) -> Result<(), Error>,
+    mut tick: impl FnMut() -> TickResult,
+    tick_ms: u64,
     params: RenderParams
-) {
-    use channel::{bounded, unbounded, Select};
+) -> Result<(), Error> {
+    use std::time::Duration;
+    use channel::{bounded, unbounded, tick as tickrecv, Select};
     use std::mem::drop;
 
     let (is, ir) = bounded(params.tile_queue);
     let (cs, cr) = unbounded();
+    let ticker = tickrecv(Duration::from_millis(tick_ms));
+
     let pool = Pool::start_bg(RenderCtx {
         input: ir,
         output: cs,
@@ -158,8 +212,9 @@ pub fn render_pipeline(
         running: AtomicBool::new(true),
     });
 
+    let mut running = true;
     'frames: for frame_num in 0.. {
-        let frame = match frames(frame_num) {
+        let frame = match frames(frame_num)? {
             Some(f) => Arc::new(f),
             None => break,
         };
@@ -167,13 +222,20 @@ pub fn render_pipeline(
 
         let mut tile = tiles.next();
         loop {
+            if !running { break 'frames }
             if tile.is_none() { break }
-            if !poll() { break 'frames }
 
-            Select::new()
-                .recv(&cr, |tile| if let Some(tile) = tile { rendered(tile); })
-                .send(&is, || tile.take().unwrap(), || ())
-                .wait();
+            Select::<Result<_, Error>>::new()
+                .recv(&cr, |tile_done| {
+                    if let Some(tile_done) = tile_done { rendered(tile_done)?; }
+                    Ok(())
+                })
+                .recv(&ticker, |_| {
+                    if tick() == TickResult::Exit { running = false }
+                    Ok(())
+                })
+                .send(&is, || tile.take().unwrap(), || Ok(()))
+                .wait()?;
 
             if tile.is_none() { tile = tiles.next() }
         }
@@ -181,9 +243,19 @@ pub fn render_pipeline(
 
     drop(is);
     pool.ctx().running.store(false, SeqCst);
-    while pool.thread_count() > 0 || !cr.is_empty() {
-        while let Some(tile) = cr.try_recv() {
-            rendered(tile);
-        }
+
+    while running && (pool.thread_count() > 0 || !cr.is_empty()) {
+        Select::<Result<_, Error>>::new()
+            .recv(&cr, |tile_done| {
+                if let Some(tile_done) = tile_done { rendered(tile_done)?; }
+                Ok(())
+            })
+            .recv(&ticker, |_| {
+                if tick() == TickResult::Exit { running = false }
+                Ok(())
+            })
+            .wait()?;
     }
+
+    Ok(())
 }
