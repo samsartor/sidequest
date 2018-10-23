@@ -14,7 +14,7 @@ ncollide = "0.14"
 palette = "0.4"
 rand = "0.5"
 sdl2 = "0.31"
-dynpool = { git = "https://gitlab.com/samsartor/dynpool.git" }
+dynpool = "0.0.0"
 crossbeam-channel = "0.2"
 num_cpus = "1.8"
 

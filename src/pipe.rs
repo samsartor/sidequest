@@ -2,7 +2,7 @@ use imgref::{ImgVec};
 use nalg::Point2;
 use camera::DefocusCamera;
 use sample::{World, SampleParams};
-use dynpool::{Worker, Context, Pool, Scale, Decision};
+use dynpool::{System, Pool, Scale, Decision};
 use channel::{Receiver, Sender};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering::SeqCst}};
 use palette::{Srgba, Alpha};
@@ -31,37 +31,22 @@ pub struct RenderCtx {
     pub running: AtomicBool,
 }
 
-impl Context for RenderCtx {
-    type Worker = Renderer;
+impl System for RenderCtx {
+    type Data = ThreadRng;
 
-    fn init(&self, _: usize) -> Renderer {
-        Renderer {
-            rng: rand::thread_rng(),
-        }
+    fn init(&self, _: usize) -> ThreadRng {
+        rand::thread_rng()
     }
 
-    fn scale(&self) -> Scale {
-        match self.running.load(SeqCst) {
-            true => Scale::active(self.threads),
-            false => Scale::shutdown(),
-        }
-    }
-}
-
-pub struct Renderer {
-    pub rng: ThreadRng,
-}
-
-impl Worker<RenderCtx> for Renderer {
-    fn work(&mut self, ctx: &RenderCtx) -> Decision {
+    fn work(&self, rng: &mut ThreadRng) -> Decision {
         use crate::sample::sample_pixel;
 
-        let mut tile = match ctx.input.recv() {
+        let mut tile = match self.input.recv() {
             Some(tile) => tile,
             None => return Decision::Again,
         };
 
-        let pixel_width = 1. / ctx.size.1.max(ctx.size.0) as f64;
+        let pixel_width = 1. / self.size.1.max(self.size.0) as f64;
         for (y, row) in tile.buf.rows_mut().enumerate() {
             let y = (y + tile.top) as f64 * pixel_width;
             for (x, px) in row.iter_mut().enumerate() {
@@ -73,7 +58,7 @@ impl Worker<RenderCtx> for Renderer {
                         &tile.frame.world,
                         Point2::new(x * 2. - 1., y * 2. - 1.),
                         pixel_width,
-                        &mut self.rng,
+                        rng,
                         &tile.frame.params,
                     ),
                     alpha: 1.,
@@ -81,9 +66,16 @@ impl Worker<RenderCtx> for Renderer {
             }
         }
 
-        ctx.output.send(tile);
+        self.output.send(tile);
 
         Decision::Incomplete
+    }
+
+    fn scale(&self) -> Scale {
+        match self.running.load(SeqCst) {
+            true => Scale::active(self.threads),
+            false => Scale::shutdown(),
+        }
     }
 }
 
@@ -242,7 +234,7 @@ pub fn render_pipeline(
     }
 
     drop(is);
-    pool.ctx().running.store(false, SeqCst);
+    pool.system().running.store(false, SeqCst);
 
     while running && (pool.thread_count() > 0 || !cr.is_empty()) {
         Select::<Result<_, Error>>::new()
